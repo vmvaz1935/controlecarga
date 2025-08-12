@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ACWR • sRPE (Firebase • Google + Email)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Firebase SDKs (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  <style>
+    :root { --bg:#F7F8FA; --card:#FFFFFF; --primary:#2563EB; --muted:#6B7280; }
+    body { background:var(--bg); }
+    .card { background:var(--card); border-radius:1rem; box-shadow:0 10px 20px rgba(0,0,0,.06);}
+    .chip { padding:.25rem .5rem; border-radius:999px; background:#EEF2FF; color:#3730A3; font-size:.75rem; }
+    .kpi { font-size:1.5rem; font-weight:700; }
+    .kpi-label { font-size:.8rem; color:var(--muted); }
+    .btn { background:var(--primary); color:#fff; padding:.6rem .9rem; border-radius:.8rem; font-weight:600; }
+    .btn-secondary { background:#E5E7EB; color:#111827; }
+    .btn-ghost { background:transparent; color:var(--primary); }
+    .small { font-size:.8rem; color:var(--muted);}
+    .calendar-grid { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:.5rem; }
+    .calendar-cell { min-height:72px; border-radius:.75rem; background:#fff; position:relative; padding:.5rem; }
+    .calendar-load { position:absolute; inset:0; border-radius:.75rem; opacity:.1; }
+  </style>
+</head>
+<body class="min-h-screen">
+  <header class="p-4 md:p-6">
+    <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="h-10 w-10 rounded-2xl bg-blue-600 flex items-center justify-center text-white font-bold">AC</div>
+        <div>
+          <h1 class="text-xl md:text-2xl font-bold">ACWR • sRPE (Cloud)</h1>
+          <p class="text-sm text-gray-500 -mt-1">Armazenamento por usuário (Google / Email+Senha)</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <button id="seedBtn" class="btn-secondary px-3 py-2 rounded-lg">Demo</button>
+        <button id="exportBtn" class="btn-secondary px-3 py-2 rounded-lg">Exportar CSV</button>
+        <label class="btn-secondary px-3 py-2 rounded-lg cursor-pointer">Importar CSV
+          <input id="importInput" type="file" accept=".csv" class="hidden" />
+        </label>
+        <button id="clearBtn" class="btn-secondary px-3 py-2 rounded-lg">Limpar local</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="p-4 md:p-6">
+    <div class="max-w-6xl mx-auto grid md:grid-cols-5 gap-6">
+      <!-- Left: Auth + Form -->
+      <section class="md:col-span-2 card p-5 space-y-4">
+        <div>
+          <h2 class="text-lg font-semibold mb-2">1) Configurar Firebase</h2>
+          <p class="small mb-2">Seu JSON já está preenchido. Se mudar, cole outro JSON e clique <b>Conectar</b>.</p>
+          <textarea id="fbConfig" rows="5" class="w-full border rounded-lg p-2" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}'></textarea>
+          <div class="flex flex-wrap items-center gap-2 mt-2">
+            <button id="connectBtn" class="btn">Conectar</button>
+            <span id="cloudStatus" class="small">Offline</span>
+          </div>
+          <div id="authBox" class="hidden mt-3">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="small">Usuário:</span>
+              <span id="userSpan" class="text-sm font-medium">—</span>
+              <button id="googleBtn" class="btn-secondary px-3 py-2 rounded-lg">Entrar com Google</button>
+              <button id="signOutBtn" class="btn-secondary px-3 py-2 rounded-lg">Sair</button>
+            </div>
+            <details class="mt-3">
+              <summary class="cursor-pointer text-sm">Entrar com E-mail/Senha</summary>
+              <div class="grid grid-cols-2 gap-2 mt-2">
+                <input id="emailInput" type="email" placeholder="email@exemplo.com" class="border rounded-lg p-2 col-span-2">
+                <input id="passInput" type="password" placeholder="Senha" class="border rounded-lg p-2 col-span-2">
+                <button id="emailSignIn" class="btn-secondary px-3 py-2 rounded-lg">Entrar</button>
+                <button id="emailSignUp" class="btn-secondary px-3 py-2 rounded-lg">Criar conta</button>
+                <button id="emailReset" class="btn-secondary px-3 py-2 rounded-lg col-span-2">Esqueci a senha</button>
+              </div>
+            </details>
+            <div class="mt-3 small">UID: <b id="uidSpan">—</b></div>
+            <div class="mt-3 flex flex-wrap gap-2">
+              <button id="cloudPull" class="btn-secondary px-3 py-2 rounded-lg">Carregar do Cloud</button>
+              <button id="cloudPush" class="btn-secondary px-3 py-2 rounded-lg">Salvar no Cloud</button>
+              <label class="flex items-center gap-2 text-sm">
+                <input id="autoSync" type="checkbox" /> Auto-sync ao lançar/remover
+              </label>
+            </div>
+            <p class="small mt-3">Regras do Firestore (seguras):</p>
+            <pre class="bg-gray-50 p-2 rounded text-xs overflow-auto">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/sessions/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}</pre>
+          </div>
+        </div>
+
+        <div class="h-px bg-gray-200"></div>
+
+        <h2 class="text-lg font-semibold">2) Lançar sessão</h2>
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2">
+            <label class="small">Data</label>
+            <input id="dateInput" type="date" class="w-full border rounded-lg p-2" />
+          </div>
+          <div class="col-span-2">
+            <label class="small">Nome da sessão</label>
+            <input id="nameInput" type="text" placeholder="Corrida Intervalada, Força Lower..." class="w-full border rounded-lg p-2" />
+          </div>
+          <div>
+            <label class="small">Duração (min)</label>
+            <input id="durInput" type="number" min="0" class="w-full border rounded-lg p-2" placeholder="60" />
+          </div>
+          <div>
+            <label class="small">RPE (0–10)</label>
+            <input id="rpeInput" type="number" min="0" max="10" class="w-full border rounded-lg p-2" placeholder="6" />
+            <div class="flex flex-wrap gap-2 mt-2">
+              <span class="chip cursor-pointer" data-rpe="3">3</span>
+              <span class="chip cursor-pointer" data-rpe="4">4</span>
+              <span class="chip cursor-pointer" data-rpe="5">5</span>
+              <span class="chip cursor-pointer" data-rpe="6">6</span>
+              <span class="chip cursor-pointer" data-rpe="7">7</span>
+            </div>
+          </div>
+          <div class="col-span-2">
+            <button id="addBtn" class="btn w-full">Adicionar sessão</button>
+          </div>
+        </div>
+
+        <div class="h-px bg-gray-200 my-4"></div>
+
+        <h3 class="font-semibold mb-2">Entradas recentes</h3>
+        <div class="max-h-64 overflow-auto">
+          <table class="w-full text-sm">
+            <thead class="sticky top-0 bg-white">
+              <tr class="text-left text-gray-500">
+                <th class="py-1">Data</th>
+                <th>Dia</th>
+                <th>Nome</th>
+                <th class="text-right">Min</th>
+                <th class="text-right">RPE</th>
+                <th class="text-right">sRPE</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="entriesTbody"></tbody>
+          </table>
+        </div>
+        <p class="small mt-3">sRPE = Duração × RPE. Dados ficam no <b>localStorage</b> e podem ser <b>sincronizados</b> com o <b>Firestore</b>.</p>
+      </section>
+
+      <!-- Right: Dashboard -->
+      <section class="md:col-span-3 card p-5">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <h2 class="text-lg font-semibold">Painel</h2>
+          <div class="flex items-center gap-2">
+            <label class="small">Período:</label>
+            <input id="fromInput" type="date" class="border rounded-lg p-2" />
+            <span class="text-gray-400">—</span>
+            <input id="toInput" type="date" class="border rounded-lg p-2" />
+            <button id="applyRangeBtn" class="btn-ghost px-3 py-2 rounded-lg">Aplicar</button>
+          </div>
+        </div>
+
+        <div class="grid md:grid-cols-5 gap-3 mt-4">
+          <div class="p-4 rounded-2xl bg-white border">
+            <div class="kpi" id="kpiAcute">0</div>
+            <div class="kpi-label">Carga Aguda (7d)</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-white border">
+            <div class="kpi" id="kpiChronic">0</div>
+            <div class="kpi-label">Carga Crônica (28d)</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-white border">
+            <div class="kpi" id="kpiACWR">—</div>
+            <div class="kpi-label">ACWR</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-white border">
+            <div class="kpi" id="kpiStatus">—</div>
+            <div class="kpi-label">Zona</div>
+          </div>
+          <div class="p-4 rounded-2xl bg-white border">
+            <div class="kpi" id="kpiDaily">0</div>
+            <div class="kpi-label">Carga do dia (sRPE)</div>
+          </div>
+        </div>
+
+        <div class="mt-4 card p-4">
+          <canvas id="acwrChart" height="120"></canvas>
+          <p class="small mt-2">Linha: ACWR • Barras: Aguda (7d) e Crônica (28d). LOW &lt; 0,8 | SWEET 0,8–1,3 | HIGH &gt; 1,3.</p>
+        </div>
+
+        <div class="mt-4">
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold">Visão mensal</h3>
+            <div class="flex items-center gap-2">
+              <button id="prevMonth" class="btn-secondary px-3 py-2 rounded-lg">◀</button>
+              <div id="monthLabel" class="min-w-28 text-center font-medium"></div>
+              <button id="nextMonth" class="btn-secondary px-3 py-2 rounded-lg">▶</button>
+            </div>
+          </div>
+          <div class="grid grid-cols-7 mt-2 text-xs text-gray-500">
+            <div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div><div>Dom</div>
+          </div>
+          <div id="calendar" class="calendar-grid mt-2"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer class="p-6 text-center small">
+    Pronto para GitHub Pages e Canva (Embed). Ative os provedores em Authentication e autorize seu domínio.
+  </footer>
+
+<script>
+// ---------- Firebase ----------
+let fb = { app:null, auth:null, db:null, uid:null, user:null, connected:false };
+
+async function connectFirebase(configJson){
+  try { 
+    const cfg = JSON.parse(configJson);
+    fb.app = firebase.initializeApp(cfg);
+    fb.auth = firebase.auth();
+    fb.db = firebase.firestore();
+    document.getElementById("cloudStatus").textContent = "Conectado (SDK)";
+    fb.connected = true;
+    fb.auth.onAuthStateChanged((user) => {
+      fb.user = user || null;
+      fb.uid = user ? user.uid : null;
+      document.getElementById("uidSpan").textContent = fb.uid || "—";
+      document.getElementById("userSpan").textContent = user ? (user.email || user.displayName || user.uid) : "—";
+      document.getElementById("authBox").classList.remove("hidden");
+    });
+  } catch (e) {
+    alert("Falha ao iniciar Firebase. Revise o JSON do Firebase Config.");
+    document.getElementById("cloudStatus").textContent = "Offline";
+    fb.connected = false;
+  }
+}
+
+function userCol(){
+  if(!fb.connected || !fb.uid) throw new Error("Firebase conectado, mas usuário não autenticado.");
+  return fb.db.collection("users").doc(fb.uid).collection("sessions");
+}
+async function pullFromCloud(){
+  const snap = await userCol().get();
+  const arr = []; snap.forEach(doc => arr.push(doc.data()));
+  saveLocal(arr); boot();
+}
+async function pushToCloud(){
+  const arr = loadLocal();
+  const batch = fb.db.batch();
+  const col = userCol();
+  const snap = await col.get(); snap.forEach(doc => batch.delete(doc.ref));
+  arr.forEach(s => batch.set(col.doc(s.id), s));
+  await batch.commit(); alert("Sincronizado com o Cloud!");
+}
+
+// ---------- Auth ----------
+async function googleSignIn(){
+  const provider = new firebase.auth.GoogleAuthProvider();
+  try { await fb.auth.signInWithPopup(provider); }
+  catch (e) { if (e.code === "auth/popup-blocked") { await fb.auth.signInWithRedirect(provider); } else { alert("Falha no Google: " + e.message); } }
+}
+async function emailSignIn(email, pass){ try { await fb.auth.signInWithEmailAndPassword(email, pass); } catch (e) { alert("Entrar (email): " + e.message); } }
+async function emailSignUp(email, pass){ try { await fb.auth.createUserWithEmailAndPassword(email, pass); } catch (e) { alert("Criar conta: " + e.message); } }
+async function emailReset(email){ try { await fb.auth.sendPasswordResetEmail(email); alert("E-mail de redefinição enviado."); } catch (e) { alert("Reset: " + e.message); } }
+async function signOut(){ try { await fb.auth.signOut(); } catch(e){} }
+
+// ---------- Core ----------
+const KEY = "acwr_sessions_v1";
+const $ = (sel) => document.querySelector(sel);
+const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+const fmt = (n) => Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
+
+function toISODate(d) { return d.toISOString().slice(0,10); }
+function parseISO(s) { const [y,m,da] = s.split('-').map(Number); return new Date(y, m-1, da); }
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate()+n); return x; }
+function mondayOf(date) { const d = new Date(date); const day = (d.getDay()+6)%7; d.setDate(d.getDate()-day); d.setHours(0,0,0,0); return d; }
+
+function loadLocal(){ try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch(e){ return []; } }
+function saveLocal(arr){ localStorage.setItem(KEY, JSON.stringify(arr)); }
+
+function sRPE(session){ return Number(session.duration||0) * Number(session.rpe||0); }
+function buildDailySeries(sessions){
+  const map = new Map();
+  sessions.forEach(s => { if(!s.date) return; const key = s.date; map.set(key, (map.get(key)||0) + sRPE(s)); });
+  const dates = Array.from(map.keys()).sort();
+  return dates.map(d => ({ date: d, load: map.get(d) }));
+}
+function rollingSum(series, windowDays, idx){
+  const end = parseISO(series[idx].date);
+  const start = addDays(end, -(windowDays-1));
+  let sum = 0;
+  for(let i=0;i<=idx;i++){ const dt = parseISO(series[i].date); if(dt>=start && dt<=end) sum += series[i].load; }
+  return sum;
+}
+function rollingAvg(series, windowDays, idx){
+  const end = parseISO(series[idx].date);
+  const start = addDays(end, -(windowDays-1));
+  let sum = 0, count = 0;
+  for(let i=0;i<=idx;i++){ const dt = parseISO(series[i].date); if(dt>=start && dt<=end){ sum+=series[i].load; count++; } }
+  return count>0 ? (sum/windowDays) : 0;
+}
+function computeTimeSeries(sessions){
+  const daily = buildDailySeries(sessions);
+  return daily.map((d, i) => {
+    const acute = rollingSum(daily, 7, i);
+    const chronic = rollingAvg(daily, 28, i) * 7;
+    const acwr = chronic>0 ? (acute/chronic) : 0;
+    return { ...d, acute, chronic, acwr };
+  });
+}
+function statusFromACWR(x){ if(!x || !isFinite(x)) return "—"; if(x < 0.8) return "LOW"; if(x <= 1.3) return "SWEET"; return "HIGH"; }
+
+function renderEntriesTable(sessions){
+  const tbody = $("#entriesTbody"); tbody.innerHTML = "";
+  const sorted = sessions.slice().sort((a,b)=> a.date.localeCompare(b.date)).reverse();
+  sorted.forEach((s) => {
+    const dow = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"][(parseISO(s.date).getDay()+6)%7];
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="py-1">${s.date||""}</td>
+      <td>${dow||""}</td>
+      <td>${s.name||""}</td>
+      <td class="text-right">${s.duration||""}</td>
+      <td class="text-right">${s.rpe||""}</td>
+      <td class="text-right">${fmt(sRPE(s))}</td>
+      <td class="text-right"><button class="text-red-600" data-del="${s.id}">remover</button></td>`;
+    tbody.appendChild(tr);
+  });
+  $$("button[data-del]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      const id = btn.getAttribute("data-del");
+      const next = loadLocal().filter(s => s.id !== id);
+      saveLocal(next);
+      if($("#autoSync").checked && fb.uid) { try { await pushToCloud(); } catch(e){} }
+      boot();
+    });
+  });
+}
+
+let chart;
+function renderKPIsAndChart(sessions, fromDate=null, toDate=null){
+  let filtered = sessions.slice();
+  if(fromDate) filtered = filtered.filter(s => s.date >= fromDate);
+  if(toDate) filtered = filtered.filter(s => s.date <= toDate);
+
+  const ts = computeTimeSeries(filtered);
+  const last = ts[ts.length-1];
+  $("#kpiAcute").textContent = last ? fmt(last.acute) : "0";
+  $("#kpiChronic").textContent = last ? fmt(last.chronic) : "0";
+  $("#kpiACWR").textContent = last ? fmt(last.acwr) : "—";
+  $("#kpiDaily").textContent = (filtered.length && last) ? fmt(filtered.filter(s=>s.date===last.date).reduce((a,b)=>a+(b.duration*b.rpe),0)) : "0";
+
+  const status = statusFromACWR(last?.acwr);
+  $("#kpiStatus").textContent = status;
+
+  const labels = ts.map(d=>d.date);
+  const acute = ts.map(d=>d.acute);
+  const chronic = ts.map(d=>d.chronic);
+  const acwr = ts.map(d=>d.acwr);
+
+  const ctx = document.getElementById("acwrChart").getContext("2d");
+  if(chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { type:"bar", label:"Aguda (7d)", data: acute, borderWidth:0, backgroundColor:"rgba(37,99,235,.35)" },
+        { type:"bar", label:"Crônica (28d)", data: chronic, borderWidth:0, backgroundColor:"rgba(16,185,129,.35)" },
+        { type:"line", label:"ACWR", data: acwr, yAxisID:"y1", borderWidth:2, tension:.2, pointRadius:2, borderColor:"#111827" }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      scales: { y: { beginAtZero:true, title:{display:true, text:"Carga (sRPE)"} }, y1: { beginAtZero:true, position:"right", title:{display:true, text:"ACWR"} } },
+      plugins: { legend: { display: true } }
+    }
+  });
+}
+
+let calRef = new Date();
+function renderCalendar(sessions){
+  const grid = document.getElementById("calendar"); grid.innerHTML = "";
+  const y = calRef.getFullYear(), m = calRef.getMonth();
+  const first = new Date(y, m, 1);
+  const monthName = first.toLocaleDateString("pt-BR", { month:"long", year:"numeric" });
+  document.getElementById("monthLabel").textContent = monthName[0].toUpperCase()+monthName.slice(1);
+
+  const start = mondayOf(first);
+  for(let i=0;i<42;i++){ const day = addDays(start, i); const iso = toISODate(day); const sameMonth = (day.getMonth()===m);
+    const load = loadLocal().filter(s=>s.date===iso).reduce((a,b)=>a+(b.duration*b.rpe),0);
+    const cell = document.createElement("div"); cell.className = "calendar-cell border " + (sameMonth ? "" : "opacity-40");
+    const label = document.createElement("div"); label.className = "text-xs text-gray-500"; label.textContent = day.getDate(); cell.appendChild(label);
+    const loadEl = document.createElement("div"); loadEl.className = "calendar-load"; const alpha = Math.min(load/600, .6); loadEl.style.background = `rgba(37,99,235,${alpha})`; cell.appendChild(loadEl);
+    const val = document.createElement("div"); val.className = "absolute bottom-1 right-2 text-xs font-medium"; val.textContent = load ? fmt(load) : ""; cell.appendChild(val);
+    grid.appendChild(cell);
+  }
+}
+
+function toCSV(arr){ const header = ["date","name","duration","rpe"]; const rows = arr.map(s=>[s.date, s.name||"", s.duration||"", s.rpe||""]); return [header.join(","), ...rows.map(r=>r.join(","))].join("\n"); }
+function fromCSV(text){
+  const lines = text.trim().split(/\r?\n/); const head = lines.shift().split(",");
+  const idx = { date: head.indexOf("date"), name: head.indexOf("name"), duration: head.indexOf("duration"), rpe: head.indexOf("rpe") };
+  const out = []; lines.forEach(line => { const cols = line.split(","); const item = { id: crypto.randomUUID(), date: cols[idx.date]||"", name: cols[idx.name]||"", duration: Number(cols[idx.duration]||0), rpe: Number(cols[idx.rpe]||0) }; if(item.date) out.push(item); });
+  return out;
+}
+
+function boot(){
+  const sessions = loadLocal();
+  const todayISO = toISODate(new Date());
+  document.getElementById("dateInput").value = todayISO;
+  document.getElementById("toInput").value = todayISO;
+  document.getElementById("fromInput").value = toISODate(addDays(new Date(), -35));
+  renderEntriesTable(sessions);
+  renderKPIsAndChart(sessions, document.getElementById("fromInput").value, document.getElementById("toInput").value);
+  renderCalendar(sessions);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  // Auto-connect com seu Firebase Config
+  const AUTO_FB_CONFIG = {
+    "apiKey": "AIzaSyDXp03zlG1SlbWVbwtGbYjVuO3HmmTF8og",
+    "authDomain": "app-controle-de-carga-d7aab.firebaseapp.com",
+    "projectId": "app-controle-de-carga-d7aab",
+    "storageBucket": "app-controle-de-carga-d7aab.firebasestorage.app",
+    "messagingSenderId": "862654831012",
+    "appId": "1:862654831012:web:cd46334c80d2ce17a40931",
+    "measurementId": "G-3V589Q63DE"
+  };
+  const ta = document.getElementById("fbConfig");
+  if (ta) ta.value = JSON.stringify(AUTO_FB_CONFIG);
+  connectFirebase(JSON.stringify(AUTO_FB_CONFIG));
+
+  document.getElementById("connectBtn").addEventListener("click", async () => { await connectFirebase(document.getElementById("fbConfig").value); });
+  document.getElementById("googleBtn").addEventListener("click", googleSignIn);
+  document.getElementById("signOutBtn").addEventListener("click", signOut);
+  document.getElementById("emailSignIn").addEventListener("click", () => emailSignIn(document.getElementById("emailInput").value, document.getElementById("passInput").value));
+  document.getElementById("emailSignUp").addEventListener("click", () => emailSignUp(document.getElementById("emailInput").value, document.getElementById("passInput").value));
+  document.getElementById("emailReset").addEventListener("click", () => emailReset(document.getElementById("emailInput").value));
+
+  document.querySelectorAll(".chip[data-rpe]").forEach(el => el.addEventListener("click", ()=>{ document.getElementById("rpeInput").value = el.getAttribute("data-rpe"); }));
+
+  document.getElementById("addBtn").addEventListener("click", async () => {
+    const date = document.getElementById("dateInput").value;
+    const name = document.getElementById("nameInput").value;
+    const duration = Number(document.getElementById("durInput").value);
+    const rpe = Number(document.getElementById("rpeInput").value);
+    if(!date || !isFinite(duration) || !isFinite(rpe)) { alert("Preencha data, duração e RPE."); return; }
+    const sessions = loadLocal(); sessions.push({ id: crypto.randomUUID(), date, name, duration, rpe }); saveLocal(sessions);
+    if(document.getElementById("autoSync").checked && fb.uid) { try { await pushToCloud(); } catch(e){} }
+    document.getElementById("nameInput").value=""; document.getElementById("durInput").value=""; document.getElementById("rpeInput").value="";
+    boot();
+  });
+
+  document.getElementById("applyRangeBtn").addEventListener("click", () => { renderKPIsAndChart(loadLocal(), document.getElementById("fromInput").value, document.getElementById("toInput").value); });
+
+  document.getElementById("seedBtn").addEventListener("click", () => {
+    const today = new Date(); const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()-41);
+    const sess = []; const names=["Run Intervals","Strength Lower","Bike Z2","Mobility","Small-sided","Tempo Run"];
+    for(let i=0;i<42;i++){ const d = new Date(start.getFullYear(), start.getMonth(), start.getDate()+i);
+      if(d.getDay()===0) continue;
+      const dur = [30,40,45,50,60,75][Math.floor(Math.random()*6)];
+      const rpe = [3,4,5,6,7][Math.floor(Math.random()*5)];
+      sess.push({ id: crypto.randomUUID(), date: toISODate(d), name: names[Math.floor(Math.random()*names.length)], duration: dur, rpe });
+    }
+    saveLocal(sess); boot();
+  });
+  document.getElementById("exportBtn").addEventListener("click", () => {
+    const blob = new Blob([toCSV(loadLocal())], {type:"text/csv"});
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "sessions_acwr.csv"; a.click();
+  });
+  document.getElementById("importInput").addEventListener("change", (e) => {
+    const file = e.target.files[0]; if(!file) return;
+    const reader = new FileReader(); reader.onload = (ev) => { const arr = fromCSV(ev.target.result); const curr = loadLocal(); saveLocal(curr.concat(arr)); boot(); };
+    reader.readAsText(file);
+  });
+  document.getElementById("clearBtn").addEventListener("click", () => { if(confirm("Apagar todas as sessões do armazenamento local?")) { localStorage.removeItem(KEY); boot(); } });
+
+  document.getElementById("prevMonth").addEventListener("click", ()=>{ calRef = new Date(calRef.getFullYear(), calRef.getMonth()-1, 1); renderCalendar(loadLocal()); });
+  document.getElementById("nextMonth").addEventListener("click", ()=>{ calRef = new Date(calRef.getFullYear(), calRef.getMonth()+1, 1); renderCalendar(loadLocal()); });
+
+  boot();
+});
+</script>
+</body>
+</html>
