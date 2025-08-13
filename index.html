@@ -42,10 +42,10 @@
 
   <main class="p-4 md:p-6">
     <div class="max-w-6xl mx-auto grid md:grid-cols-5 gap-6">
-      <!-- Conta & Cloud (sem mostrar config) -->
+      <!-- Conta & Cloud -->
       <section class="md:col-span-2 card p-5 space-y-4">
         <h2 class="text-lg font-semibold">Conta & Cloud</h2>
-        <div id="authBox" class="space-y-3">
+        <div class="space-y-3">
           <div class="flex flex-wrap items-center gap-2">
             <span class="small">Usuário:</span>
             <span id="userSpan" class="text-sm font-medium">—</span>
@@ -56,7 +56,7 @@
             <summary class="cursor-pointer text-sm">Entrar com E-mail/Senha</summary>
             <div class="grid grid-cols-2 gap-2 mt-2">
               <input id="emailInput" type="email" placeholder="email@exemplo.com" class="border rounded-lg p-2 col-span-2">
-              <input id="passInput" type="password" placeholder="Senha" class="border rounded-lg p-2 col-span-2">
+              <input id="passInput" type="password" placeholder="Mín. 6 caracteres" class="border rounded-lg p-2 col-span-2">
               <button id="emailSignIn" class="btn-secondary">Entrar</button>
               <button id="emailSignUp" class="btn-secondary">Criar conta</button>
               <button id="emailReset" class="btn-secondary col-span-2">Esqueci a senha</button>
@@ -171,13 +171,26 @@
   </footer>
 
 <script>
-// ---------- status ----------
+// ---------- helpers ----------
 function setStatus(text, error=""){
   document.getElementById("cloudStatus").textContent = text;
   document.getElementById("errMsg").textContent = error ? "• " + error : "";
 }
+function showAlert(e){
+  const map = {
+    "auth/unauthorized-domain": "Domínio não autorizado no Firebase (Authentication → Settings → Authorized domains).",
+    "auth/popup-blocked": "Popup bloqueado. Usaremos redirecionamento.",
+    "auth/popup-closed-by-user": "Popup fechado.",
+    "auth/operation-not-allowed": "Provedor não habilitado em Authentication → Sign-in method.",
+    "auth/invalid-email": "E-mail inválido.",
+    "auth/weak-password": "Senha muito curta (mín. 6).",
+    "auth/user-not-found": "Usuário não encontrado.",
+    "auth/wrong-password": "Senha incorreta."
+  };
+  setStatus("Conectado (SDK)", (e && e.code ? e.code + " — " : "") + (map[e?.code] || e?.message || ""));
+}
 
-// ---------- Firebase (sem exibir config) ----------
+// ---------- Firebase ----------
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyDXp03zlG1SlbWVbwtGbYjVuO3HmmTF8og",
   authDomain: "app-controle-de-carga-d7aab.firebaseapp.com",
@@ -190,27 +203,25 @@ const FIREBASE_CONFIG = {
 
 let fb = { app:null, auth:null, db:null, uid:null, user:null, connected:false };
 
-function initFirebase(cfg){
+async function initFirebase(){
   try{
-    if (firebase.apps && firebase.apps.length) {
-      fb.app = firebase.app();
-    } else {
-      fb.app = firebase.initializeApp(cfg);
-    }
+    if (firebase.apps && firebase.apps.length) fb.app = firebase.app();
+    else fb.app = firebase.initializeApp(FIREBASE_CONFIG);
+
     fb.auth = firebase.auth();
     fb.db   = firebase.firestore();
+    await fb.auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    fb.auth.useDeviceLanguage?.();
     fb.connected = true;
     setStatus("Conectado (SDK)");
+
     fb.auth.onAuthStateChanged((user)=>{
       fb.user = user || null;
       fb.uid  = user ? user.uid : null;
       document.getElementById("uidSpan").textContent  = fb.uid || "—";
       document.getElementById("userSpan").textContent = user ? (user.email || user.displayName || user.uid) : "—";
     });
-  }catch(e){
-    fb.connected = false;
-    setStatus("Offline", e.message);
-  }
+  }catch(e){ setStatus("Offline", e.message); fb.connected=false; }
 }
 
 function userCol(){
@@ -218,158 +229,135 @@ function userCol(){
   return fb.db.collection("users").doc(fb.uid).collection("sessions");
 }
 async function pullFromCloud(){
-  const snap = await userCol().get();
-  const arr = []; snap.forEach(doc => arr.push(doc.data()));
-  saveLocal(arr); boot();
+  try{
+    const snap = await userCol().get();
+    const arr = []; snap.forEach(d => arr.push(d.data()));
+    saveLocal(arr); boot();
+  }catch(e){ showAlert(e); }
 }
 async function pushToCloud(){
-  const arr = loadLocal();
-  const batch = fb.db.batch();
-  const col = userCol();
-  const snap = await col.get(); snap.forEach(doc => batch.delete(doc.ref));
-  arr.forEach(s => batch.set(col.doc(s.id), s));
-  await batch.commit(); alert("Sincronizado com o Cloud!");
+  try{
+    const arr = loadLocal();
+    const batch = fb.db.batch();
+    const col = userCol();
+    const snap = await col.get(); snap.forEach(doc => batch.delete(doc.ref));
+    arr.forEach(s => batch.set(col.doc(s.id), s));
+    await batch.commit(); alert("Sincronizado com o Cloud!");
+  }catch(e){ showAlert(e); }
 }
 
 // ---------- Auth ----------
 async function googleSignIn(){
   const provider = new firebase.auth.GoogleAuthProvider();
-  try { await fb.auth.signInWithPopup(provider); }
-  catch(e){ if(e.code==="auth/popup-blocked"){ await fb.auth.signInWithRedirect(provider); } else { setStatus("Conectado (SDK)", e.message); } }
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  try{
+    if (isMobile) { await fb.auth.signInWithRedirect(provider); }
+    else { await fb.auth.signInWithPopup(provider); }
+  }catch(e){
+    if(e.code === "auth/popup-blocked"){ try { await fb.auth.signInWithRedirect(provider); } catch(err){ showAlert(err); } }
+    else { showAlert(e); }
+  }
 }
-async function emailSignIn(email, pass){ try{ await fb.auth.signInWithEmailAndPassword(email, pass); } catch(e){ alert(e.message); } }
-async function emailSignUp(email, pass){ try{ await fb.auth.createUserWithEmailAndPassword(email, pass); } catch(e){ alert(e.message); } }
-async function emailReset(email){ try{ await fb.auth.sendPasswordResetEmail(email); alert("E-mail de redefinição enviado."); } catch(e){ alert(e.message); } }
-async function signOut(){ try{ await fb.auth.signOut(); }catch(e){} }
+async function emailSignIn(email, pass){
+  if(!email || !pass) return showAlert({code:"auth/invalid-email", message:"Preencha e-mail e senha."});
+  try{ await fb.auth.signInWithEmailAndPassword(email, pass); }catch(e){ showAlert(e); }
+}
+async function emailSignUp(email, pass){
+  if(!email || !pass || pass.length<6) return showAlert({code:"auth/weak-password"});
+  try{ await fb.auth.createUserWithEmailAndPassword(email, pass); }catch(e){ showAlert(e); }
+}
+async function emailReset(email){
+  if(!email) return showAlert({code:"auth/invalid-email"});
+  try{ await fb.auth.sendPasswordResetEmail(email); alert("E-mail de redefinição enviado."); }catch(e){ showAlert(e); }
+}
+async function signOut(){ try{ await fb.auth.signOut(); }catch(e){ showAlert(e); } }
 
-// ---------- Core ----------
+// ---------- Core (mesmo cálculo ACWR) ----------
 const KEY = "acwr_sessions_v1";
 const $  = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 const fmt = (n) => Number(n||0).toLocaleString('pt-BR',{maximumFractionDigits:1});
-
 function toISODate(d){ return d.toISOString().slice(0,10); }
 function parseISO(s){ const [y,m,da]=s.split('-').map(Number); return new Date(y,m-1,da); }
 function addDays(d,n){ const x=new Date(d); x.setDate(x.getDate()+n); return x; }
 function mondayOf(date){ const d=new Date(date); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); d.setHours(0,0,0,0); return d; }
-
 function loadLocal(){ try { return JSON.parse(localStorage.getItem(KEY))||[]; } catch(e){ return []; } }
 function saveLocal(arr){ localStorage.setItem(KEY, JSON.stringify(arr)); }
-
 function sRPE(s){ return Number(s.duration||0)*Number(s.rpe||0); }
-function buildDailySeries(sessions){
+function buildDailySeries(s){
   const map=new Map();
-  sessions.forEach(s=>{ if(!s.date) return; const k=s.date; map.set(k,(map.get(k)||0)+sRPE(s)); });
+  s.forEach(x=>{ if(!x.date) return; const k=x.date; map.set(k,(map.get(k)||0)+sRPE(x)); });
   const dates=[...map.keys()].sort();
   return dates.map(d=>({date:d, load:map.get(d)}));
 }
-function rollingSum(series, w, i){
-  const end=parseISO(series[i].date); const start=addDays(end,-(w-1)); let sum=0;
-  for(let k=0;k<=i;k++){ const dt=parseISO(series[k].date); if(dt>=start&&dt<=end) sum+=series[k].load; }
-  return sum;
-}
-function rollingAvg(series, w, i){
-  const end=parseISO(series[i].date); const start=addDays(end,-(w-1)); let sum=0, c=0;
-  for(let k=0;k<=i;k++){ const dt=parseISO(series[k].date); if(dt>=start&&dt<=end){ sum+=series[k].load; c++; } }
-  return c>0 ? (sum/w) : 0;
-}
-function computeTimeSeries(s){
-  const daily=buildDailySeries(s);
-  return daily.map((d,i)=>{ const acute=rollingSum(daily,7,i); const chronic=rollingAvg(daily,28,i)*7; const acwr=chronic>0?acute/chronic:0; return {...d,acute,chronic,acwr}; });
-}
+function rollingSum(series,w,i){ const end=parseISO(series[i].date), start=addDays(end,-(w-1)); let sum=0; for(let k=0;k<=i;k++){ const dt=parseISO(series[k].date); if(dt>=start&&dt<=end) sum+=series[k].load; } return sum; }
+function rollingAvg(series,w,i){ const end=parseISO(series[i].date), start=addDays(end,-(w-1)); let sum=0,c=0; for(let k=0;k<=i;k++){ const dt=parseISO(series[k].date); if(dt>=start&&dt<=end){ sum+=series[k].load; c++; } } return c>0?sum/w:0; }
+function computeTimeSeries(s){ const d=buildDailySeries(s); return d.map((x,i)=>{ const a=rollingSum(d,7,i); const c=rollingAvg(d,28,i)*7; const r=c>0?a/c:0; return {...x,acute:a,chronic:c,acwr:r}; }); }
 function statusFromACWR(x){ if(!x||!isFinite(x)) return "—"; if(x<0.8) return "LOW"; if(x<=1.3) return "SWEET"; return "HIGH"; }
-
-function renderEntriesTable(sessions){
-  const tbody=$("#entriesTbody"); tbody.innerHTML="";
-  const sorted=sessions.slice().sort((a,b)=>a.date.localeCompare(b.date)).reverse();
-  sorted.forEach((s)=>{
-    const dow=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"][(parseISO(s.date).getDay()+6)%7];
+function renderEntriesTable(s){
+  const tb=$("#entriesTbody"); tb.innerHTML="";
+  const sorted=s.slice().sort((a,b)=>a.date.localeCompare(b.date)).reverse();
+  sorted.forEach(x=>{
+    const dow=["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"][(parseISO(x.date).getDay()+6)%7];
     const tr=document.createElement("tr");
-    tr.innerHTML=`
-      <td class="py-1">${s.date||""}</td>
-      <td>${dow||""}</td>
-      <td>${s.name||""}</td>
-      <td class="text-right">${s.duration||""}</td>
-      <td class="text-right">${s.rpe||""}</td>
-      <td class="text-right">${fmt(sRPE(s))}</td>
-      <td class="text-right"><button class="text-red-600" data-del="${s.id}">remover</button></td>`;
-    tbody.appendChild(tr);
+    tr.innerHTML=`<td class="py-1">${x.date||""}</td><td>${dow||""}</td><td>${x.name||""}</td>
+    <td class="text-right">${x.duration||""}</td><td class="text-right">${x.rpe||""}</td>
+    <td class="text-right">${fmt(sRPE(x))}</td><td class="text-right"><button class="text-red-600" data-del="${x.id}">remover</button></td>`;
+    tb.appendChild(tr);
   });
-  $$("button[data-del]").forEach(b=>{
-    b.addEventListener("click", async ()=>{
-      const id=b.getAttribute("data-del");
-      const next=loadLocal().filter(s=>s.id!==id);
-      saveLocal(next);
-      if($("#autoSync").checked && fb.uid){ try{ await pushToCloud(); }catch(e){} }
-      boot();
-    });
-  });
+  $$("button[data-del]").forEach(b=>b.addEventListener("click", async ()=>{
+    const id=b.getAttribute("data-del"); const next=loadLocal().filter(x=>x.id!==id); saveLocal(next);
+    if($("#autoSync").checked && fb.uid){ try{ await pushToCloud(); }catch(e){} }
+    boot();
+  }));
 }
-
 let chart;
-function renderKPIsAndChart(sessions, fromDate=null, toDate=null){
-  let filtered=sessions.slice();
-  if(fromDate) filtered=filtered.filter(s=>s.date>=fromDate);
-  if(toDate)   filtered=filtered.filter(s=>s.date<=toDate);
-  const ts=computeTimeSeries(filtered);
-  const last=ts[ts.length-1];
-  $("#kpiAcute").textContent  = last ? fmt(last.acute)  : "0";
-  $("#kpiChronic").textContent= last ? fmt(last.chronic): "0";
-  $("#kpiACWR").textContent   = last ? fmt(last.acwr)   : "—";
-  $("#kpiDaily").textContent  = (filtered.length && last) ? fmt(filtered.filter(s=>s.date===last.date).reduce((a,b)=>a+(b.duration*b.rpe),0)) : "0";
-  $("#kpiStatus").textContent = statusFromACWR(last?.acwr);
-
+function renderKPIsAndChart(s, fromDate=null, toDate=null){
+  let f=s.slice(); if(fromDate) f=f.filter(x=>x.date>=fromDate); if(toDate) f=f.filter(x=>x.date<=toDate);
+  const ts=computeTimeSeries(f); const last=ts[ts.length-1];
+  $("#kpiAcute").textContent= last?fmt(last.acute):"0";
+  $("#kpiChronic").textContent= last?fmt(last.chronic):"0";
+  $("#kpiACWR").textContent= last?fmt(last.acwr):"—";
+  $("#kpiDaily").textContent= (f.length&&last)?fmt(f.filter(x=>x.date===last.date).reduce((a,b)=>a+(b.duration*b.rpe),0)):"0";
+  $("#kpiStatus").textContent=statusFromACWR(last?.acwr);
   const labels=ts.map(d=>d.date), acute=ts.map(d=>d.acute), chronic=ts.map(d=>d.chronic), acwr=ts.map(d=>d.acwr);
-  const ctx=document.getElementById("acwrChart").getContext("2d");
-  if(chart) chart.destroy();
+  const ctx=document.getElementById("acwrChart").getContext("2d"); if(chart) chart.destroy();
   chart=new Chart(ctx,{type:"bar",data:{labels,datasets:[
     {type:"bar",label:"Aguda (7d)",data:acute,backgroundColor:"rgba(37,99,235,.35)",borderWidth:0},
     {type:"bar",label:"Crônica (28d)",data:chronic,backgroundColor:"rgba(16,185,129,.35)",borderWidth:0},
     {type:"line",label:"ACWR",data:acwr,yAxisID:"y1",borderWidth:2,tension:.2,pointRadius:2,borderColor:"#111827"}
   ]},options:{responsive:true,maintainAspectRatio:false,scales:{y:{beginAtZero:true,title:{display:true,text:"Carga (sRPE)"}},y1:{beginAtZero:true,position:"right",title:{display:true,text:"ACWR"}}},plugins:{legend:{display:true}}});
 }
-
 let calRef=new Date();
-function renderCalendar(sessions){
+function renderCalendar(s){
   const grid=document.getElementById("calendar"); grid.innerHTML="";
-  const y=calRef.getFullYear(), m=calRef.getMonth();
-  const first=new Date(y,m,1);
-  const monthName=first.toLocaleDateString("pt-BR",{month:"long",year:"numeric"});
-  document.getElementById("monthLabel").textContent=monthName[0].toUpperCase()+monthName.slice(1);
+  const y=calRef.getFullYear(), m=calRef.getMonth(), first=new Date(y,m,1);
+  const monthName=first.toLocaleDateString("pt-BR",{month:"long",year:"numeric"}); document.getElementById("monthLabel").textContent=monthName[0].toUpperCase()+monthName.slice(1);
   const start=mondayOf(first);
   for(let i=0;i<42;i++){
-    const day=addDays(start,i); const iso=toISODate(day); const sameMonth=(day.getMonth()===m);
-    const load=loadLocal().filter(s=>s.date===iso).reduce((a,b)=>a+(b.duration*b.rpe),0);
-    const cell=document.createElement("div"); cell.className="calendar-cell border " + (sameMonth?"":"opacity-40");
+    const day=addDays(start,i), iso=toISODate(day), same=(day.getMonth()===m);
+    const load=loadLocal().filter(x=>x.date===iso).reduce((a,b)=>a+(b.duration*b.rpe),0);
+    const cell=document.createElement("div"); cell.className="calendar-cell border "+(same?"":"opacity-40");
     const label=document.createElement("div"); label.className="text-xs text-gray-500"; label.textContent=day.getDate(); cell.appendChild(label);
     const loadEl=document.createElement("div"); loadEl.className="calendar-load"; const alpha=Math.min(load/600,.6); loadEl.style.background=`rgba(37,99,235,${alpha})`; cell.appendChild(loadEl);
     const val=document.createElement("div"); val.className="absolute bottom-1 right-2 text-xs font-medium"; val.textContent=load?fmt(load):""; cell.appendChild(val);
     grid.appendChild(cell);
   }
 }
-
-function toCSV(arr){ const header=["date","name","duration","rpe"]; const rows=arr.map(s=>[s.date,s.name||"",s.duration||"",s.rpe||""]); return [header.join(","), ...rows.map(r=>r.join(","))].join("\n"); }
-function fromCSV(text){
-  const lines=text.trim().split(/\r?\n/); const head=lines.shift().split(",");
-  const idx={date:head.indexOf("date"),name:head.indexOf("name"),duration:head.indexOf("duration"),rpe:head.indexOf("rpe")};
+function toCSV(a){ const h=["date","name","duration","rpe"], rows=a.map(s=>[s.date,s.name||"",s.duration||"",s.rpe||""]); return [h.join(","),...rows.map(r=>r.join(","))].join("\n"); }
+function fromCSV(txt){
+  const lines=txt.trim().split(/\r?\n/); const head=lines.shift().split(","); const idx={date:head.indexOf("date"),name:head.indexOf("name"),duration:head.indexOf("duration"),rpe:head.indexOf("rpe")};
   const out=[]; lines.forEach(line=>{ const c=line.split(","); const item={id:crypto.randomUUID(),date:c[idx.date]||"",name:c[idx.name]||"",duration:Number(c[idx.duration]||0),rpe:Number(c[idx.rpe]||0)}; if(item.date) out.push(item); });
   return out;
 }
-
 function boot(){
-  const sessions=loadLocal();
-  const todayISO=toISODate(new Date());
-  document.getElementById("dateInput").value=todayISO;
-  document.getElementById("toInput").value=todayISO;
-  document.getElementById("fromInput").value=toISODate(addDays(new Date(),-35));
-  renderEntriesTable(sessions);
-  renderKPIsAndChart(sessions, document.getElementById("fromInput").value, document.getElementById("toInput").value);
-  renderCalendar(sessions);
+  const s=loadLocal(); const today=toISODate(new Date());
+  document.getElementById("dateInput").value=today; document.getElementById("toInput").value=today; document.getElementById("fromInput").value=toISODate(addDays(new Date(),-35));
+  renderEntriesTable(s); renderKPIsAndChart(s, document.getElementById("fromInput").value, document.getElementById("toInput").value); renderCalendar(s);
 }
 
-document.addEventListener("DOMContentLoaded", ()=>{
-  // inicia Firebase sem exibir config
-  initFirebase(FIREBASE_CONFIG);
+document.addEventListener("DOMContentLoaded", async ()=>{
+  await initFirebase();
 
   document.getElementById("googleBtn").addEventListener("click", googleSignIn);
   document.getElementById("signOutBtn").addEventListener("click", signOut);
@@ -380,19 +368,19 @@ document.addEventListener("DOMContentLoaded", ()=>{
   document.querySelectorAll(".chip[data-rpe]").forEach(el=> el.addEventListener("click", ()=>{ document.getElementById("rpeInput").value = el.getAttribute("data-rpe"); }));
 
   document.getElementById("addBtn").addEventListener("click", async ()=>{
-    const date=$("#dateInput").value, name=$("#nameInput").value, duration=Number($("#durInput").value), rpe=Number($("#rpeInput").value);
-    if(!date || !isFinite(duration) || !isFinite(rpe)) { alert("Preencha data, duração e RPE."); return; }
-    const sessions=loadLocal(); sessions.push({ id: crypto.randomUUID(), date, name, duration, rpe }); saveLocal(sessions);
-    if($("#autoSync").checked && fb.uid){ try{ await pushToCloud(); }catch(e){} }
-    $("#nameInput").value=""; $("#durInput").value=""; $("#rpeInput").value="";
+    const date=document.getElementById("dateInput").value, name=document.getElementById("nameInput").value, duration=Number(document.getElementById("durInput").value), rpe=Number(document.getElementById("rpeInput").value);
+    if(!date || !isFinite(duration) || !isFinite(rpe)) return alert("Preencha data, duração e RPE.");
+    const s=loadLocal(); s.push({ id: crypto.randomUUID(), date, name, duration, rpe }); saveLocal(s);
+    if(document.getElementById("autoSync").checked && fb.uid){ try{ await pushToCloud(); }catch(e){} }
+    document.getElementById("nameInput").value=""; document.getElementById("durInput").value=""; document.getElementById("rpeInput").value="";
     boot();
   });
 
-  $("#applyRangeBtn").addEventListener("click", ()=> renderKPIsAndChart(loadLocal(), $("#fromInput").value, $("#toInput").value));
-  $("#cloudPull").addEventListener("click", pullFromCloud);
-  $("#cloudPush").addEventListener("click", pushToCloud);
-  $("#prevMonth").addEventListener("click", ()=>{ calRef=new Date(calRef.getFullYear(), calRef.getMonth()-1, 1); renderCalendar(loadLocal()); });
-  $("#nextMonth").addEventListener("click", ()=>{ calRef=new Date(calRef.getFullYear(), calRef.getMonth()+1, 1); renderCalendar(loadLocal()); });
+  document.getElementById("applyRangeBtn").addEventListener("click", ()=> renderKPIsAndChart(loadLocal(), document.getElementById("fromInput").value, document.getElementById("toInput").value));
+  document.getElementById("cloudPull").addEventListener("click", pullFromCloud);
+  document.getElementById("cloudPush").addEventListener("click", pushToCloud);
+  document.getElementById("prevMonth").addEventListener("click", ()=>{ calRef=new Date(calRef.getFullYear(), calRef.getMonth()-1, 1); renderCalendar(loadLocal()); });
+  document.getElementById("nextMonth").addEventListener("click", ()=>{ calRef=new Date(calRef.getFullYear(), calRef.getMonth()+1, 1); renderCalendar(loadLocal()); });
 
   boot();
 });
