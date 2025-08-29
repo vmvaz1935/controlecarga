@@ -273,68 +273,57 @@
 
   <main class="p-4 md:p-6">
     <div class="max-w-6xl mx-auto grid md:grid-cols-5 gap-6">
-      <!-- Left: Auth + Form -->
-      <section class="md:col-span-2 card p-6 space-y-6 fade-in">
-        <div>
-          <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
-            <span>⚙️</span> Configuração Firebase
-          </h2>
-          <p class="small mb-3">Configure suas credenciais do Firebase para sincronização em nuvem.</p>
-          <textarea id="fbConfig" rows="5" class="w-full border rounded-lg p-3 font-mono text-sm" placeholder='{"apiKey":"...","authDomain":"...","projectId":"...","appId":"..."}'></textarea>
-          <div class="flex flex-wrap items-center gap-2 mt-3">
-            <button id="connectBtn" class="btn flex items-center gap-2">
-              <span>🔗</span> Conectar
-            </button>
-            <span id="cloudStatus" class="small px-3 py-1 bg-gray-100 rounded-full">Offline</span>
-          </div>
-          <div id="authBox" class="hidden mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-            <div class="flex flex-wrap items-center gap-2 mb-3">
-              <span class="small">👤 Usuário:</span>
-              <span id="userSpan" class="text-sm font-medium">—</span>
-              <button id="googleBtn" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
-                <span>🔐</span> Google
-              </button>
-              <button id="signOutBtn" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
-                <span>🚪</span> Sair
-              </button>
-            </div>
-            <details class="mt-3">
-              <summary class="cursor-pointer text-sm font-medium flex items-center gap-2">
-                <span>📧</span> Entrar com E-mail/Senha
-              </summary>
-              <div class="grid grid-cols-2 gap-2 mt-3">
-                <input id="emailInput" type="email" placeholder="email@exemplo.com" class="border rounded-lg p-2 col-span-2">
-                <input id="passInput" type="password" placeholder="Senha" class="border rounded-lg p-2 col-span-2">
-                <button id="emailSignIn" class="btn-secondary px-3 py-2 rounded-lg">Entrar</button>
-                <button id="emailSignUp" class="btn-secondary px-3 py-2 rounded-lg">Criar conta</button>
-                <button id="emailReset" class="btn-secondary px-3 py-2 rounded-lg col-span-2">Esqueci a senha</button>
-              </div>
-            </details>
-            <div class="mt-3 small">🆔 UID: <b id="uidSpan">—</b></div>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <button id="cloudPull" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
-                <span>⬇️</span> Carregar
-              </button>
-              <button id="cloudPush" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
-                <span>⬆️</span> Salvar
-              </button>
-              <label class="flex items-center gap-2 text-sm">
-                <input id="autoSync" type="checkbox" /> 🔄 Auto-sync
-              </label>
-            </div>
-            <p class="small mt-3">🔒 Regras do Firestore (seguras):</p>
-            <pre class="bg-gray-50 p-3 rounded-lg text-xs overflow-auto font-mono">rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId}/sessions/{docId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
-}</pre>
-          </div>
-        </div>
+             <!-- Left: Auth + Form -->
+       <section class="md:col-span-2 card p-6 space-y-6 fade-in">
+         <div>
+           <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
+             <span>☁️</span> Sincronização em Nuvem
+           </h2>
+           <p class="small mb-3">Conecte-se ao Firebase para sincronizar seus dados automaticamente.</p>
+           
+           <div id="authBox" class="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
+             <div class="flex flex-wrap items-center gap-2 mb-3">
+               <span class="small">👤 Usuário:</span>
+               <span id="userSpan" class="text-sm font-medium">—</span>
+               <button id="googleBtn" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
+                 <span>🔐</span> Google
+               </button>
+               <button id="signOutBtn" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
+                 <span>🚪</span> Sair
+               </button>
+             </div>
+             <details class="mt-3">
+               <summary class="cursor-pointer text-sm font-medium flex items-center gap-2">
+                 <span>📧</span> Entrar com E-mail/Senha
+               </summary>
+               <div class="grid grid-cols-2 gap-2 mt-3">
+                 <input id="emailInput" type="email" placeholder="email@exemplo.com" class="border rounded-lg p-2 col-span-2">
+                 <input id="passInput" type="password" placeholder="Senha" class="border rounded-lg p-2 col-span-2">
+                 <button id="emailSignIn" class="btn-secondary px-3 py-2 rounded-lg">Entrar</button>
+                 <button id="emailSignUp" class="btn-secondary px-3 py-2 rounded-lg">Criar conta</button>
+                 <button id="emailReset" class="btn-secondary px-3 py-2 rounded-lg col-span-2">Esqueci a senha</button>
+               </div>
+             </details>
+             <div class="mt-3 small">🆔 UID: <b id="uidSpan">—</b></div>
+             <div class="mt-3 flex flex-wrap gap-2">
+               <button id="cloudPull" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
+                 <span>⬇️</span> Carregar
+               </button>
+               <button id="cloudPush" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
+                 <span>⬆️</span> Salvar
+               </button>
+               <label class="flex items-center gap-2 text-sm">
+                 <input id="autoSync" type="checkbox" /> 🔄 Auto-sync
+               </label>
+             </div>
+             <div class="mt-3 flex items-center gap-2">
+               <span id="cloudStatus" class="small px-3 py-1 bg-green-100 text-green-800 rounded-full">Conectado</span>
+               <span class="text-xs text-gray-500">Firebase configurado automaticamente</span>
+             </div>
+           </div>
+         </div>
 
-        <div class="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
+         <div class="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
 
         <h2 class="text-lg font-semibold flex items-center gap-2">
           <span>➕</span> Nova Sessão
@@ -483,17 +472,16 @@ async function connectFirebase(configJson){
     
     showNotification("Firebase conectado com sucesso!", "success");
     
-    fb.auth.onAuthStateChanged((user) => {
-      fb.user = user || null;
-      fb.uid = user ? user.uid : null;
-      document.getElementById("uidSpan").textContent = fb.uid || "—";
-      document.getElementById("userSpan").textContent = user ? (user.email || user.displayName || user.uid) : "—";
-      document.getElementById("authBox").classList.remove("hidden");
-      
-      if (user) {
-        showNotification(`Bem-vindo, ${user.email || user.displayName}!`, "success");
-      }
-    });
+         fb.auth.onAuthStateChanged((user) => {
+       fb.user = user || null;
+       fb.uid = user ? user.uid : null;
+       document.getElementById("uidSpan").textContent = fb.uid || "—";
+       document.getElementById("userSpan").textContent = user ? (user.email || user.displayName || user.uid) : "—";
+       
+       if (user) {
+         showNotification(`Bem-vindo, ${user.email || user.displayName}!`, "success");
+       }
+     });
   } catch (e) {
     statusElement.textContent = "Erro de conexão";
     statusElement.className = "small px-3 py-1 bg-red-100 text-red-800 rounded-full";
@@ -513,7 +501,7 @@ async function pullFromCloud(){
   addLoadingState(pullBtn);
   
   try {
-    const snap = await userCol().get();
+  const snap = await userCol().get();
     const arr = []; 
     snap.forEach(doc => arr.push(doc.data()));
     saveLocal(arr); 
@@ -531,12 +519,12 @@ async function pushToCloud(){
   addLoadingState(pushBtn);
   
   try {
-    const arr = loadLocal();
-    const batch = fb.db.batch();
-    const col = userCol();
+  const arr = loadLocal();
+  const batch = fb.db.batch();
+  const col = userCol();
     const snap = await col.get(); 
     snap.forEach(doc => batch.delete(doc.ref));
-    arr.forEach(s => batch.set(col.doc(s.id), s));
+  arr.forEach(s => batch.set(col.doc(s.id), s));
     await batch.commit(); 
     showNotification(`${arr.length} sessões sincronizadas com o cloud!`, "success");
   } catch (error) {
@@ -755,8 +743,8 @@ function renderEntriesTable(sessions){
       
       if (confirm(`Remover sessão "${session?.name || 'Sem nome'}" de ${session?.date}?`)) {
         try {
-          const next = loadLocal().filter(s => s.id !== id);
-          saveLocal(next);
+      const next = loadLocal().filter(s => s.id !== id);
+      saveLocal(next);
           
           if($("#autoSync").checked && fb.uid) { 
             try { 
@@ -769,7 +757,7 @@ function renderEntriesTable(sessions){
             showNotification("Sessão removida com sucesso!", "success");
           }
           
-          boot();
+      boot();
         } catch (error) {
           showNotification("Erro ao remover sessão.", "error");
         }
@@ -885,18 +873,15 @@ function boot(){
   renderCalendar(sessions);
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  // Auto-connect com configuração do Firebase
-  const ta = document.getElementById("fbConfig");
-  if (ta && typeof FIREBASE_CONFIG !== 'undefined') {
-    ta.value = JSON.stringify(FIREBASE_CONFIG);
-    connectFirebase(JSON.stringify(FIREBASE_CONFIG));
-  } else {
-    console.warn("Arquivo config.js não encontrado. Configure suas credenciais do Firebase.");
-    document.getElementById("cloudStatus").textContent = "Configuração necessária";
-  }
-
-  document.getElementById("connectBtn").addEventListener("click", async () => { await connectFirebase(document.getElementById("fbConfig").value); });
+ document.addEventListener("DOMContentLoaded", () => {
+   // Auto-connect com configuração do Firebase
+   if (typeof FIREBASE_CONFIG !== 'undefined') {
+     connectFirebase(JSON.stringify(FIREBASE_CONFIG));
+   } else {
+     console.warn("Arquivo config.js não encontrado. Configure suas credenciais do Firebase.");
+     document.getElementById("cloudStatus").textContent = "Configuração necessária";
+     document.getElementById("cloudStatus").className = "small px-3 py-1 bg-red-100 text-red-800 rounded-full";
+   }
   document.getElementById("googleBtn").addEventListener("click", googleSignIn);
   document.getElementById("signOutBtn").addEventListener("click", signOut);
   document.getElementById("emailSignIn").addEventListener("click", () => emailSignIn(document.getElementById("emailInput").value, document.getElementById("passInput").value));
@@ -938,7 +923,7 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("nameInput").value=""; 
       document.getElementById("durInput").value=""; 
       document.getElementById("rpeInput").value="";
-      boot();
+    boot();
     } catch (error) {
       showNotification("Erro ao adicionar sessão.", "error");
     } finally {
@@ -960,9 +945,9 @@ document.addEventListener("DOMContentLoaded", () => {
       
       for(let i=0;i<42;i++){ 
         const d = new Date(start.getFullYear(), start.getMonth(), start.getDate()+i);
-        if(d.getDay()===0) continue;
-        const dur = [30,40,45,50,60,75][Math.floor(Math.random()*6)];
-        const rpe = [3,4,5,6,7][Math.floor(Math.random()*5)];
+      if(d.getDay()===0) continue;
+      const dur = [30,40,45,50,60,75][Math.floor(Math.random()*6)];
+      const rpe = [3,4,5,6,7][Math.floor(Math.random()*5)];
         sess.push({ 
           id: crypto.randomUUID(), 
           date: toISODate(d), 
@@ -983,7 +968,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   document.getElementById("exportBtn").addEventListener("click", () => {
     try {
-      const blob = new Blob([toCSV(loadLocal())], {type:"text/csv"});
+    const blob = new Blob([toCSV(loadLocal())], {type:"text/csv"});
       const a = document.createElement("a"); 
       a.href = URL.createObjectURL(blob); 
       a.download = `sessions_acwr_${new Date().toISOString().slice(0,10)}.csv`; 

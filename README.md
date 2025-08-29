@@ -19,35 +19,28 @@ Dashboard moderno e intuitivo para controle de carga de treinamento usando ACWR 
 - 📊 **Analítico**: Gráficos e métricas em tempo real
 - 🎯 **Intuitivo**: UX otimizada com atalhos de teclado
 
-## 🔐 Configuração Segura do Firebase
+## 🔐 Configuração do Firebase
 
-### ⚠️ IMPORTANTE: Proteção de Credenciais
+### ✅ Configuração Automática
 
-Para proteger suas credenciais do Firebase, siga estes passos:
+O Firebase já está configurado automaticamente! As credenciais estão protegidas no backend e não são visíveis na interface.
 
-1. **Copie o arquivo de exemplo:**
-   ```bash
-   cp config.example.js config.js
-   ```
+**Arquivos protegidos:**
+- `config.js` - Configuração do cliente Firebase
+- `app-controle-de-carga-d7aab-firebase-adminsdk-fbsvc-5ce0f69631.json` - Service Account (backend)
 
-2. **Edite o arquivo `config.js`** e substitua as credenciais de exemplo pelas suas credenciais reais do Firebase.
+### 🔒 Segurança Implementada
 
-3. **NUNCA compartilhe o arquivo `config.js`** - ele já está no `.gitignore` para não ser enviado ao repositório.
-
-### 🔧 Como obter as credenciais do Firebase:
-
-1. Acesse o [Console do Firebase](https://console.firebase.google.com/)
-2. Selecione seu projeto
-3. Vá em **Configurações do Projeto** (ícone de engrenagem)
-4. Na aba **Geral**, role até "Seus aplicativos"
-5. Clique em **Configuração do SDK**
-6. Copie o objeto de configuração para o arquivo `config.js`
+- ✅ Credenciais no backend (não visíveis na interface)
+- ✅ Arquivos sensíveis no `.gitignore`
+- ✅ Conexão automática ao carregar a página
+- ✅ Autenticação obrigatória para acesso aos dados
 
 ### 📁 Estrutura de arquivos:
 
 ```
-├── Index.html          # Aplicação principal
-├── config.js           # 🔒 Credenciais do Firebase (NÃO compartilhar)
+├── index.html          # Aplicação principal
+├── config.js           # 🔒 Configuração Firebase (automática)
 ├── config.example.js   # 📋 Exemplo de configuração
 ├── .gitignore          # Lista de arquivos ignorados pelo Git
 └── README.md           # Este arquivo
