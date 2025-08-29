@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard • ACWR • sRPE</title>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+  
+  <!-- Configuração Híbrida -->
+  <script>
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const BACKEND_URL = isLocal ? 'http://localhost:5000' : null;
+    
+    const FIREBASE_CONFIG = {
+      "apiKey":"AIzaSyDXp03zlG1SlbWVbwtGbYjVuO3HmmTF8og",
+      "authDomain":"app-controle-de-carga-d7aab.firebaseapp.com",
+      "projectId":"app-controle-de-carga-d7aab",
+      "storageBucket":"app-controle-de-carga-d7aab.firebasestorage.app",
+      "messagingSenderId":"862654831012",
+      "appId":"1:862654831012:web:cd46334c80d2ce17a40931",
+      "measurementId":"G-3V589Q63DE"
+    };
+  </script>
+
+  <style>
+    :root { 
+      --bg: #f8fafc; 
+      --card: #ffffff; 
+      --primary: #3b82f6; 
+      --primary-dark: #2563eb;
+      --primary-light: #dbeafe;
+      --muted: #64748b; 
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --border: #e2e8f0;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    }
+    
+    * { box-sizing: border-box; }
+    
+    body { 
+      background: linear-gradient(135deg, var(--bg) 0%, #e2e8f0 100%);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.6;
+      margin: 0;
+      min-height: 100vh;
+    }
+    
+    .card { 
+      background: var(--card); 
+      border-radius: 1.5rem; 
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      transition: all 0.3s ease;
+    }
+    
+    .card:hover {
+      box-shadow: var(--shadow-lg);
+      transform: translateY(-2px);
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+      color: white;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.75rem;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-lg);
+    }
+    
+    .btn-secondary {
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.75rem;
+      border: 1px solid var(--primary);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .btn-secondary:hover {
+      background: var(--primary);
+      color: white;
+    }
+    
+    .chart-container {
+      position: relative;
+      height: 400px;
+      width: 100%;
+    }
+    
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid var(--primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 1rem 1.5rem;
+      border-radius: 0.75rem;
+      color: white;
+      font-weight: 600;
+      z-index: 1000;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+    }
+    
+    .notification.show {
+      transform: translateX(0);
+    }
+    
+    .notification.success { background: var(--success); }
+    .notification.error { background: var(--danger); }
+    .notification.info { background: var(--primary); }
+    .notification.warning { background: var(--warning); }
+  </style>
+</head>
+
+<body>
+  <!-- Header -->
+  <header class="bg-white shadow-sm border-b border-gray-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex justify-between items-center py-4">
+        <div class="flex items-center space-x-4">
+          <h1 class="text-2xl font-bold text-gray-900">📊 Dashboard ACWR • sRPE</h1>
+          <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium" id="userStatus">Carregando...</span>
+        </div>
+        <div class="flex items-center space-x-4">
+          <a href="index.html" class="btn-secondary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Voltar ao App
+          </a>
+          <button id="refreshBtn" class="btn-primary">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            Atualizar
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <!-- Filtros -->
+    <div class="card p-6 mb-8">
+      <h2 class="text-xl font-semibold text-gray-900 mb-4">🔍 Filtros de Período</h2>
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">De:</label>
+          <input type="date" id="fromDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Até:</label>
+          <input type="date" id="toDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Atividade:</label>
+          <select id="activityFilter" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+            <option value="">Todas</option>
+          </select>
+        </div>
+        <div class="flex items-end">
+          <button id="applyFilters" class="btn-primary w-full">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.207A1 1 0 013 6.5V4z"></path>
+            </svg>
+            Aplicar Filtros
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div class="card p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-600">Total de Sessões</p>
+            <p class="text-3xl font-bold text-gray-900" id="totalSessions">0</p>
+          </div>
+          <div class="p-3 bg-blue-100 rounded-full">
+            <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-600">Tempo Total (h)</p>
+            <p class="text-3xl font-bold text-gray-900" id="totalHours">0</p>
+          </div>
+          <div class="p-3 bg-green-100 rounded-full">
+            <svg class="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-600">RPE Médio</p>
+            <p class="text-3xl font-bold text-gray-900" id="avgRPE">0</p>
+          </div>
+          <div class="p-3 bg-yellow-100 rounded-full">
+            <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+      
+      <div class="card p-6">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="text-sm font-medium text-gray-600">ACWR</p>
+            <p class="text-3xl font-bold text-gray-900" id="acwrValue">0</p>
+          </div>
+          <div class="p-3 bg-purple-100 rounded-full">
+            <svg class="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gráficos -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <!-- Gráfico de Linha - Evolução Temporal -->
+      <div class="card p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">📈 Evolução Temporal</h3>
+        <div class="chart-container">
+          <canvas id="timelineChart"></canvas>
+        </div>
+      </div>
+      
+      <!-- Gráfico de Barras - Distribuição RPE -->
+      <div class="card p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">📊 Distribuição RPE</h3>
+        <div class="chart-container">
+          <canvas id="rpeChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Gráficos Adicionais -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <!-- Gráfico de Pizza - Tipos de Atividade -->
+      <div class="card p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">🥧 Tipos de Atividade</h3>
+        <div class="chart-container">
+          <canvas id="activityChart"></canvas>
+        </div>
+      </div>
+      
+      <!-- Gráfico de Área - Carga Semanal -->
+      <div class="card p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">📅 Carga Semanal</h3>
+        <div class="chart-container">
+          <canvas id="weeklyLoadChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabela de Dados -->
+    <div class="card p-6">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">📋 Dados Detalhados</h3>
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Atividade</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duração (min)</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">RPE</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Carga</th>
+            </tr>
+          </thead>
+          <tbody id="dataTable" class="bg-white divide-y divide-gray-200">
+            <!-- Dados serão inseridos aqui -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- Notification Container -->
+  <div id="notificationContainer"></div>
+
+  <script>
+    // Firebase Híbrido
+    let fb = { app:null, auth:null, db:null, uid:null, user:null, connected:false, idToken:null, useBackend: false };
+    let charts = {};
+    let currentData = [];
+
+    // Funções de utilidade
+    function showNotification(message, type = 'info') {
+      const container = document.getElementById('notificationContainer');
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+      notification.textContent = message;
+      container.appendChild(notification);
+      
+      setTimeout(() => notification.classList.add('show'), 100);
+      setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => container.removeChild(notification), 300);
+      }, 3000);
+    }
+
+    function addLoadingState(element) {
+      element.disabled = true;
+      element.innerHTML = '<div class="loading"></div> Carregando...';
+    }
+
+    function removeLoadingState(element) {
+      element.disabled = false;
+      element.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>Atualizar';
+    }
+
+    // Conectar Firebase
+    async function connectFirebase(){
+      const statusElement = document.getElementById("userStatus");
+      
+      try { 
+        if (typeof firebase === 'undefined') {
+          throw new Error("Firebase não carregado");
+        }
+        
+        fb.app = firebase.initializeApp(FIREBASE_CONFIG);
+        fb.auth = firebase.auth();
+        
+        if (BACKEND_URL) {
+          try {
+            const response = await fetch(`${BACKEND_URL}/api/health`, { timeout: 3000 });
+            if (response.ok) {
+              fb.useBackend = true;
+              statusElement.textContent = "Conectado (Backend)";
+            }
+          } catch (e) {
+            fb.useBackend = false;
+            fb.db = firebase.firestore();
+            statusElement.textContent = "Conectado (Firebase)";
+          }
+        } else {
+          fb.useBackend = false;
+          fb.db = firebase.firestore();
+          statusElement.textContent = "Conectado (Online)";
+        }
+        
+        statusElement.className = "px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium";
+        fb.connected = true;
+        
+        fb.auth.onAuthStateChanged(async (user) => {
+          fb.user = user || null;
+          fb.uid = user ? user.uid : null;
+          
+          if (user) {
+            if (fb.useBackend) {
+              fb.idToken = await user.getIdToken();
+            }
+            loadData();
+          } else {
+            fb.idToken = null;
+            showNotification("Faça login para ver os dados", "warning");
+          }
+        });
+      } catch (e) {
+        statusElement.textContent = "Erro de conexão";
+        statusElement.className = "px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium";
+        fb.connected = false;
+        showNotification("Falha ao conectar Firebase.", "error");
+      }
+    }
+
+    // Carregar dados
+    async function loadData() {
+      try {
+        let sessions = [];
+        
+        if (fb.useBackend && fb.idToken) {
+          const response = await fetch(`${BACKEND_URL}/api/sessions/${fb.uid}`, {
+            headers: { 'Authorization': `Bearer ${fb.idToken}` }
+          });
+          const data = await response.json();
+          sessions = data.sessions || [];
+        } else if (fb.db) {
+          const snap = await fb.db.collection("users").doc(fb.uid).collection("sessions").get();
+          snap.forEach(doc => sessions.push({ ...doc.data(), id: doc.id }));
+        } else {
+          // Fallback para localStorage
+          sessions = JSON.parse(localStorage.getItem('sessions') || '[]');
+        }
+        
+        currentData = sessions;
+        updateCharts();
+        updateKPIs();
+        updateTable();
+        updateFilters();
+        
+      } catch (error) {
+        showNotification("Erro ao carregar dados: " + error.message, "error");
+      }
+    }
+
+    // Atualizar gráficos
+    function updateCharts() {
+      const filteredData = getFilteredData();
+      
+      // Timeline Chart
+      updateTimelineChart(filteredData);
+      
+      // RPE Distribution Chart
+      updateRPEChart(filteredData);
+      
+      // Activity Chart
+      updateActivityChart(filteredData);
+      
+      // Weekly Load Chart
+      updateWeeklyLoadChart(filteredData);
+    }
+
+    function updateTimelineChart(data) {
+      const ctx = document.getElementById('timelineChart').getContext('2d');
+      
+      if (charts.timeline) {
+        charts.timeline.destroy();
+      }
+      
+      const sortedData = data.sort((a, b) => new Date(a.date) - new Date(b.date));
+      
+      charts.timeline = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: sortedData.map(d => new Date(d.date).toLocaleDateString('pt-BR')),
+          datasets: [{
+            label: 'RPE',
+            data: sortedData.map(d => d.rpe),
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            tension: 0.4,
+            fill: true
+          }, {
+            label: 'Duração (min)',
+            data: sortedData.map(d => d.duration),
+            borderColor: '#10b981',
+            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+            tension: 0.4,
+            yAxisID: 'y1'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: {
+            intersect: false,
+            mode: 'index'
+          },
+          scales: {
+            y: {
+              type: 'linear',
+              display: true,
+              position: 'left',
+              title: { display: true, text: 'RPE' }
+            },
+            y1: {
+              type: 'linear',
+              display: true,
+              position: 'right',
+              title: { display: true, text: 'Duração (min)' },
+              grid: { drawOnChartArea: false }
+            }
+          },
+          plugins: {
+            legend: { position: 'top' },
+            tooltip: {
+              callbacks: {
+                afterBody: function(context) {
+                  const index = context[0].dataIndex;
+                  const session = sortedData[index];
+                  return `Atividade: ${session.name}`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateRPEChart(data) {
+      const ctx = document.getElementById('rpeChart').getContext('2d');
+      
+      if (charts.rpe) {
+        charts.rpe.destroy();
+      }
+      
+      const rpeCounts = {};
+      data.forEach(session => {
+        rpeCounts[session.rpe] = (rpeCounts[session.rpe] || 0) + 1;
+      });
+      
+      charts.rpe = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: Object.keys(rpeCounts).sort((a, b) => a - b),
+          datasets: [{
+            label: 'Sessões',
+            data: Object.keys(rpeCounts).sort((a, b) => a - b).map(rpe => rpeCounts[rpe]),
+            backgroundColor: [
+              '#ef4444', '#f97316', '#f59e0b', '#eab308', 
+              '#84cc16', '#22c55e', '#10b981', '#14b8a6'
+            ],
+            borderWidth: 0
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return `${context.parsed.y} sessões com RPE ${context.parsed.x}`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Número de Sessões' }
+            },
+            x: {
+              title: { display: true, text: 'RPE' }
+            }
+          }
+        }
+      });
+    }
+
+    function updateActivityChart(data) {
+      const ctx = document.getElementById('activityChart').getContext('2d');
+      
+      if (charts.activity) {
+        charts.activity.destroy();
+      }
+      
+      const activityCounts = {};
+      data.forEach(session => {
+        activityCounts[session.name] = (activityCounts[session.name] || 0) + 1;
+      });
+      
+      const colors = [
+        '#3b82f6', '#ef4444', '#10b981', '#f59e0b', 
+        '#8b5cf6', '#06b6d4', '#f97316', '#84cc16'
+      ];
+      
+      charts.activity = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(activityCounts),
+          datasets: [{
+            data: Object.values(activityCounts),
+            backgroundColor: colors.slice(0, Object.keys(activityCounts).length),
+            borderWidth: 2,
+            borderColor: '#ffffff'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom' },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = ((context.parsed / total) * 100).toFixed(1);
+                  return `${context.label}: ${context.parsed} (${percentage}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function updateWeeklyLoadChart(data) {
+      const ctx = document.getElementById('weeklyLoadChart').getContext('2d');
+      
+      if (charts.weeklyLoad) {
+        charts.weeklyLoad.destroy();
+      }
+      
+      // Agrupar por semana
+      const weeklyData = {};
+      data.forEach(session => {
+        const date = new Date(session.date);
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - date.getDay());
+        const weekKey = weekStart.toISOString().split('T')[0];
+        
+        if (!weeklyData[weekKey]) {
+          weeklyData[weekKey] = { load: 0, sessions: 0 };
+        }
+        weeklyData[weekKey].load += session.duration * session.rpe;
+        weeklyData[weekKey].sessions += 1;
+      });
+      
+      const sortedWeeks = Object.keys(weeklyData).sort();
+      
+      charts.weeklyLoad = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: sortedWeeks.map(week => {
+            const date = new Date(week);
+            return `Semana ${date.toLocaleDateString('pt-BR', { month: 'short', day: 'numeric' })}`;
+          }),
+          datasets: [{
+            label: 'Carga Semanal',
+            data: sortedWeeks.map(week => weeklyData[week].load),
+            borderColor: '#8b5cf6',
+            backgroundColor: 'rgba(139, 92, 246, 0.1)',
+            tension: 0.4,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top' },
+            tooltip: {
+              callbacks: {
+                afterBody: function(context) {
+                  const week = sortedWeeks[context[0].dataIndex];
+                  return `Sessões: ${weeklyData[week].sessions}`;
+                }
+              }
+            }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: 'Carga Total' }
+            }
+          }
+        }
+      });
+    }
+
+    // Atualizar KPIs
+    function updateKPIs() {
+      const filteredData = getFilteredData();
+      
+      const totalSessions = filteredData.length;
+      const totalHours = filteredData.reduce((sum, session) => sum + session.duration, 0) / 60;
+      const avgRPE = filteredData.length > 0 ? 
+        (filteredData.reduce((sum, session) => sum + session.rpe, 0) / filteredData.length).toFixed(1) : 0;
+      
+      // Calcular ACWR (Acute:Chronic Workload Ratio)
+      const acwr = calculateACWR(filteredData);
+      
+      document.getElementById('totalSessions').textContent = totalSessions;
+      document.getElementById('totalHours').textContent = totalHours.toFixed(1);
+      document.getElementById('avgRPE').textContent = avgRPE;
+      document.getElementById('acwrValue').textContent = acwr.toFixed(2);
+    }
+
+    function calculateACWR(data) {
+      if (data.length < 7) return 0;
+      
+      const sortedData = data.sort((a, b) => new Date(b.date) - new Date(a.date));
+      const today = new Date();
+      
+      // Carga aguda (últimos 7 dias)
+      const acuteLoad = sortedData
+        .filter(session => {
+          const sessionDate = new Date(session.date);
+          const diffDays = (today - sessionDate) / (1000 * 60 * 60 * 24);
+          return diffDays <= 7;
+        })
+        .reduce((sum, session) => sum + (session.duration * session.rpe), 0);
+      
+      // Carga crônica (últimos 28 dias)
+      const chronicLoad = sortedData
+        .filter(session => {
+          const sessionDate = new Date(session.date);
+          const diffDays = (today - sessionDate) / (1000 * 60 * 60 * 24);
+          return diffDays <= 28;
+        })
+        .reduce((sum, session) => sum + (session.duration * session.rpe), 0);
+      
+      return chronicLoad > 0 ? acuteLoad / (chronicLoad / 4) : 0;
+    }
+
+    // Atualizar tabela
+    function updateTable() {
+      const filteredData = getFilteredData();
+      const tbody = document.getElementById('dataTable');
+      
+      tbody.innerHTML = filteredData
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .map(session => `
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              ${new Date(session.date).toLocaleDateString('pt-BR')}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              ${session.name}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              ${session.duration}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              <span class="px-2 py-1 text-xs font-medium rounded-full ${
+                session.rpe <= 3 ? 'bg-green-100 text-green-800' :
+                session.rpe <= 5 ? 'bg-yellow-100 text-yellow-800' :
+                'bg-red-100 text-red-800'
+              }">
+                ${session.rpe}
+              </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              ${session.duration * session.rpe}
+            </td>
+          </tr>
+        `).join('');
+    }
+
+    // Atualizar filtros
+    function updateFilters() {
+      const activities = [...new Set(currentData.map(session => session.name))];
+      const select = document.getElementById('activityFilter');
+      
+      select.innerHTML = '<option value="">Todas</option>' +
+        activities.map(activity => `<option value="${activity}">${activity}</option>`).join('');
+    }
+
+    // Obter dados filtrados
+    function getFilteredData() {
+      let filtered = [...currentData];
+      
+      const fromDate = document.getElementById('fromDate').value;
+      const toDate = document.getElementById('toDate').value;
+      const activityFilter = document.getElementById('activityFilter').value;
+      
+      if (fromDate) {
+        filtered = filtered.filter(session => session.date >= fromDate);
+      }
+      
+      if (toDate) {
+        filtered = filtered.filter(session => session.date <= toDate);
+      }
+      
+      if (activityFilter) {
+        filtered = filtered.filter(session => session.name === activityFilter);
+      }
+      
+      return filtered;
+    }
+
+    // Event Listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        if (typeof FIREBASE_CONFIG !== 'undefined' && typeof firebase !== 'undefined') {
+          connectFirebase();
+        } else {
+          document.getElementById("userStatus").textContent = "Configuração necessária";
+          document.getElementById("userStatus").className = "px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium";
+        }
+      }, 1000);
+      
+      document.getElementById('refreshBtn').addEventListener('click', () => {
+        const btn = document.getElementById('refreshBtn');
+        addLoadingState(btn);
+        loadData().finally(() => removeLoadingState(btn));
+      });
+      
+      document.getElementById('applyFilters').addEventListener('click', () => {
+        updateCharts();
+        updateKPIs();
+        updateTable();
+      });
+      
+      // Definir datas padrão (últimos 30 dias)
+      const today = new Date();
+      const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+      
+      document.getElementById('fromDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+      document.getElementById('toDate').value = today.toISOString().split('T')[0];
+    });
+  </script>
+</body>
+</html>
