@@ -13,10 +13,12 @@
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-     <!-- Configuração do Backend -->
+     <!-- Configuração Híbrida (Local + Online) -->
    <script>
-     // Configuração do backend
-     const BACKEND_URL = 'http://localhost:5000';
+     // Detectar ambiente
+     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+     const BACKEND_URL = isLocal ? 'http://localhost:5000' : null;
+     
      const FIREBASE_CONFIG = {
        "apiKey":"AIzaSyDXp03zlG1SlbWVbwtGbYjVuO3HmmTF8og",
        "authDomain":"app-controle-de-carga-d7aab.firebaseapp.com",
@@ -466,30 +468,52 @@
   </footer>
 
 <script>
-// ---------- Backend API ----------
-let fb = { auth:null, uid:null, user:null, connected:false, idToken:null };
+// ---------- Firebase Híbrido (Local + Online) ----------
+let fb = { app:null, auth:null, db:null, uid:null, user:null, connected:false, idToken:null, useBackend: false };
 
-async function connectBackend(){
+async function connectFirebase(){
   const statusElement = document.getElementById("cloudStatus");
   
   try { 
-    // Inicializar Firebase Auth apenas para autenticação
+    // Inicializar Firebase
     fb.app = firebase.initializeApp(FIREBASE_CONFIG);
     fb.auth = firebase.auth();
     
-    statusElement.textContent = "Conectado";
+    // Verificar se backend está disponível
+    if (BACKEND_URL) {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/health`, { timeout: 3000 });
+        if (response.ok) {
+          fb.useBackend = true;
+          statusElement.textContent = "Conectado (Backend)";
+          showNotification("Backend conectado com sucesso!", "success");
+        }
+      } catch (e) {
+        console.log("Backend não disponível, usando Firebase direto");
+        fb.useBackend = false;
+        fb.db = firebase.firestore();
+        statusElement.textContent = "Conectado (Firebase)";
+        showNotification("Firebase conectado com sucesso!", "success");
+      }
+    } else {
+      // Online - usar Firebase direto
+      fb.useBackend = false;
+      fb.db = firebase.firestore();
+      statusElement.textContent = "Conectado (Online)";
+      showNotification("Firebase conectado com sucesso!", "success");
+    }
+    
     statusElement.className = "small px-3 py-1 bg-green-100 text-green-800 rounded-full";
     fb.connected = true;
-    
-    showNotification("Backend conectado com sucesso!", "success");
     
     fb.auth.onAuthStateChanged(async (user) => {
       fb.user = user || null;
       fb.uid = user ? user.uid : null;
       
       if (user) {
-        // Obter token para usar com o backend
-        fb.idToken = await user.getIdToken();
+        if (fb.useBackend) {
+          fb.idToken = await user.getIdToken();
+        }
         document.getElementById("uidSpan").textContent = fb.uid || "—";
         document.getElementById("userSpan").textContent = user.email || user.displayName || user.uid;
         showNotification(`Bem-vindo, ${user.email || user.displayName}!`, "success");
@@ -503,7 +527,7 @@ async function connectBackend(){
     statusElement.textContent = "Erro de conexão";
     statusElement.className = "small px-3 py-1 bg-red-100 text-red-800 rounded-full";
     fb.connected = false;
-    showNotification("Falha ao conectar backend.", "error");
+    showNotification("Falha ao conectar Firebase.", "error");
   }
 }
 
@@ -512,26 +536,37 @@ async function pullFromCloud(){
   addLoadingState(pullBtn);
   
   try {
-    if (!fb.uid || !fb.idToken) {
+    if (!fb.uid) {
       throw new Error("Usuário não autenticado");
     }
     
-    const response = await fetch(`${BACKEND_URL}/api/sessions/${fb.uid}`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${fb.idToken}`,
-        'Content-Type': 'application/json'
+    if (fb.useBackend && fb.idToken) {
+      // Usar backend
+      const response = await fetch(`${BACKEND_URL}/api/sessions/${fb.uid}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${fb.idToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`);
       }
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Erro ${response.status}: ${response.statusText}`);
+      
+      const data = await response.json();
+      saveLocal(data.sessions || []); 
+      showNotification(`${data.count} sessões carregadas do cloud!`, "success");
+    } else {
+      // Usar Firebase direto
+      const snap = await fb.db.collection("users").doc(fb.uid).collection("sessions").get();
+      const arr = []; 
+      snap.forEach(doc => arr.push({ ...doc.data(), id: doc.id }));
+      saveLocal(arr); 
+      showNotification(`${arr.length} sessões carregadas do cloud!`, "success");
     }
     
-    const data = await response.json();
-    saveLocal(data.sessions || []); 
     boot();
-    showNotification(`${data.count} sessões carregadas do cloud!`, "success");
   } catch (error) {
     showNotification("Erro ao carregar dados do cloud: " + error.message, "error");
   } finally {
@@ -544,26 +579,39 @@ async function pushToCloud(){
   addLoadingState(pushBtn);
   
   try {
-    if (!fb.uid || !fb.idToken) {
+    if (!fb.uid) {
       throw new Error("Usuário não autenticado");
     }
     
     const arr = loadLocal();
-    const response = await fetch(`${BACKEND_URL}/api/sessions/${fb.uid}`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${fb.idToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ sessions: arr })
-    });
     
-    if (!response.ok) {
-      throw new Error(`Erro ${response.status}: ${response.statusText}`);
+    if (fb.useBackend && fb.idToken) {
+      // Usar backend
+      const response = await fetch(`${BACKEND_URL}/api/sessions/${fb.uid}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${fb.idToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ sessions: arr })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Erro ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      showNotification(`${data.count} sessões sincronizadas com o cloud!`, "success");
+    } else {
+      // Usar Firebase direto
+      const batch = fb.db.batch();
+      const col = fb.db.collection("users").doc(fb.uid).collection("sessions");
+      const snap = await col.get(); 
+      snap.forEach(doc => batch.delete(doc.ref));
+      arr.forEach(s => batch.set(col.doc(s.id), { date: s.date, name: s.name, duration: s.duration, rpe: s.rpe }));
+      await batch.commit(); 
+      showNotification(`${arr.length} sessões sincronizadas com o cloud!`, "success");
     }
-    
-    const data = await response.json();
-    showNotification(`${data.count} sessões sincronizadas com o cloud!`, "success");
   } catch (error) {
     showNotification("Erro ao sincronizar com o cloud: " + error.message, "error");
   } finally {
@@ -925,9 +973,9 @@ function boot(){
 }
 
  document.addEventListener("DOMContentLoaded", () => {
-   // Auto-connect com backend
+   // Auto-connect com Firebase (híbrido)
    if (typeof FIREBASE_CONFIG !== 'undefined') {
-     connectBackend();
+     connectFirebase();
    } else {
      console.warn("Configuração do Firebase não encontrada.");
      document.getElementById("cloudStatus").textContent = "Configuração necessária";
