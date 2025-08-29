@@ -572,25 +572,39 @@ async function pushToCloud(){
 }
 
 // ---------- Auth ----------
-async function googleSignIn(){
-  const googleBtn = document.getElementById("googleBtn");
-  addLoadingState(googleBtn);
-  
-  const provider = new firebase.auth.GoogleAuthProvider();
-  try { 
-    await fb.auth.signInWithPopup(provider); 
-    showNotification("Login com Google realizado com sucesso!", "success");
-  }
-  catch (e) { 
-    if (e.code === "auth/popup-blocked") { 
-      await fb.auth.signInWithRedirect(provider); 
-    } else { 
-      showNotification("Falha no login Google: " + e.message, "error"); 
-    } 
-  } finally {
-    removeLoadingState(googleBtn);
-  }
-}
+ async function googleSignIn(){
+   const googleBtn = document.getElementById("googleBtn");
+   addLoadingState(googleBtn);
+   
+   const provider = new firebase.auth.GoogleAuthProvider();
+   provider.addScope('email');
+   provider.addScope('profile');
+   
+   try { 
+     await fb.auth.signInWithPopup(provider); 
+     showNotification("Login com Google realizado com sucesso!", "success");
+   }
+   catch (e) { 
+     console.error("Erro no login Google:", e);
+     
+     if (e.code === "auth/popup-blocked") { 
+       showNotification("Popup bloqueado. Tentando redirecionamento...", "info");
+       try {
+         await fb.auth.signInWithRedirect(provider);
+       } catch (redirectError) {
+         showNotification("Erro no redirecionamento: " + redirectError.message, "error");
+       }
+     } else if (e.code === "auth/unauthorized-domain") {
+       showNotification("Domínio não autorizado. Configure no Firebase Console.", "error");
+     } else if (e.code === "auth/operation-not-allowed") {
+       showNotification("Login Google não habilitado. Configure no Firebase Console.", "error");
+     } else { 
+       showNotification("Falha no login Google: " + e.message, "error"); 
+     } 
+   } finally {
+     removeLoadingState(googleBtn);
+   }
+ }
 
 async function emailSignIn(email, pass){ 
   const signInBtn = document.getElementById("emailSignIn");
@@ -919,6 +933,18 @@ function boot(){
      document.getElementById("cloudStatus").textContent = "Configuração necessária";
      document.getElementById("cloudStatus").className = "small px-3 py-1 bg-red-100 text-red-800 rounded-full";
    }
+   
+   // Verificar resultado do redirecionamento do Google
+   firebase.auth().getRedirectResult().then((result) => {
+     if (result.user) {
+       showNotification(`Bem-vindo, ${result.user.email || result.user.displayName}!`, "success");
+     }
+   }).catch((error) => {
+     if (error.code !== 'auth/no-redirect-result') {
+       console.error("Erro no redirecionamento:", error);
+       showNotification("Erro no login: " + error.message, "error");
+     }
+   });
   document.getElementById("googleBtn").addEventListener("click", googleSignIn);
   document.getElementById("signOutBtn").addEventListener("click", signOut);
   document.getElementById("emailSignIn").addEventListener("click", () => emailSignIn(document.getElementById("emailInput").value, document.getElementById("passInput").value));
