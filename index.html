@@ -475,6 +475,11 @@ async function connectFirebase(){
   const statusElement = document.getElementById("cloudStatus");
   
   try { 
+    // Verificar se Firebase está disponível
+    if (typeof firebase === 'undefined') {
+      throw new Error("Firebase não carregado");
+    }
+    
     // Inicializar Firebase
     fb.app = firebase.initializeApp(FIREBASE_CONFIG);
     fb.auth = firebase.auth();
@@ -973,14 +978,17 @@ function boot(){
 }
 
  document.addEventListener("DOMContentLoaded", () => {
-   // Auto-connect com Firebase (híbrido)
-   if (typeof FIREBASE_CONFIG !== 'undefined') {
-     connectFirebase();
-   } else {
-     console.warn("Configuração do Firebase não encontrada.");
-     document.getElementById("cloudStatus").textContent = "Configuração necessária";
-     document.getElementById("cloudStatus").className = "small px-3 py-1 bg-red-100 text-red-800 rounded-full";
-   }
+   // Aguardar Firebase carregar completamente
+   setTimeout(() => {
+     // Auto-connect com Firebase (híbrido)
+     if (typeof FIREBASE_CONFIG !== 'undefined' && typeof firebase !== 'undefined') {
+       connectFirebase();
+     } else {
+       console.warn("Configuração do Firebase não encontrada ou Firebase não carregado.");
+       document.getElementById("cloudStatus").textContent = "Configuração necessária";
+       document.getElementById("cloudStatus").className = "small px-3 py-1 bg-red-100 text-red-800 rounded-full";
+     }
+   }, 1000); // Aguardar 1 segundo para Firebase carregar
    
    // Verificar resultado do redirecionamento do Google
    firebase.auth().getRedirectResult().then((result) => {
