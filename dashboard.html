@@ -382,6 +382,13 @@
     let fb = { app:null, auth:null, db:null, uid:null, user:null, connected:false, idToken:null, useBackend: false };
     let charts = {};
     let currentData = [];
+    let unsubscribeSnapshot = null;
+
+    // Storage (mantém consistente com index.html)
+    const KEY = "acwr_sessions_v1";
+    function loadLocal(){
+      try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch(e){ return []; }
+    }
 
     // Funções de utilidade
     function showNotification(message, type = 'info') {
@@ -517,16 +524,38 @@
           fb.user = user || null;
           fb.uid = user ? user.uid : null;
           
+          if (unsubscribeSnapshot) { try { unsubscribeSnapshot(); } catch(_){} finally { unsubscribeSnapshot = null; } }
+
           if (user) {
             if (fb.useBackend) {
               fb.idToken = await user.getIdToken();
+            }
+            // Listener em tempo real somente quando usando Firestore direto
+            if (!fb.useBackend && fb.db && fb.uid) {
+              unsubscribeSnapshot = fb.db
+                .collection("users").doc(fb.uid).collection("sessions")
+                .onSnapshot((snap) => {
+                  const arr = [];
+                  snap.forEach(doc => arr.push({ ...doc.data(), id: doc.id }));
+                  currentData = arr;
+                  updateCharts();
+                  updateKPIs();
+                  updateTable();
+                  updateFilters();
+                });
             }
             loadData();
             setupRealTimeListener(); // Configurar listener em tempo real
             setupCrossTabListener(); // Configurar listener entre abas
           } else {
             fb.idToken = null;
-            showNotification("Faça login para ver os dados", "warning");
+            // Sem login, mostra dados locais
+            currentData = loadLocal();
+            updateCharts();
+            updateKPIs();
+            updateTable();
+            updateFilters();
+            showNotification("Faça login para ver os dados do cloud", "warning");
           }
         });
       } catch (e) {
@@ -691,12 +720,12 @@
           });
           const data = await response.json();
           sessions = data.sessions || [];
-        } else if (fb.db) {
+        } else if (fb.db && fb.uid) {
           const snap = await fb.db.collection("users").doc(fb.uid).collection("sessions").get();
           snap.forEach(doc => sessions.push({ ...doc.data(), id: doc.id }));
         } else {
           // Fallback para localStorage
-          sessions = JSON.parse(localStorage.getItem('sessions') || '[]');
+          sessions = loadLocal();
         }
         
         currentData = sessions;
@@ -858,6 +887,24 @@
         showNotification("Erro ao sincronizar com página principal: " + error.message, "error");
       }
     }
+
+    // Sincroniza atualizações locais entre abas/páginas
+    window.addEventListener('storage', (e) => {
+      if (e.key === KEY) {
+        currentData = loadLocal();
+        updateCharts();
+        updateKPIs();
+        updateTable();
+        updateFilters();
+      }
+    });
+
+    // Recarrega ao voltar o foco (ex.: usuário acabou de adicionar dados na página principal)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        loadData();
+      }
+    });
 
     // Atualizar gráficos
     function updateCharts() {
