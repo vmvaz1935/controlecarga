@@ -568,6 +568,9 @@ async function pullFromCloud(){
       const data = await response.json();
       saveLocal(data.sessions || []); 
       showNotification(`${data.count} sessões carregadas do cloud!`, "success");
+      
+      // Notificar outras abas sobre a mudança
+      notifyOtherTabs(true);
     } else {
       // Usar Firebase direto
       const snap = await fb.db.collection("users").doc(fb.uid).collection("sessions").get();
@@ -575,6 +578,9 @@ async function pullFromCloud(){
       snap.forEach(doc => arr.push({ ...doc.data(), id: doc.id }));
       saveLocal(arr); 
       showNotification(`${arr.length} sessões carregadas do cloud!`, "success");
+      
+      // Notificar outras abas sobre a mudança
+      notifyOtherTabs(true);
     }
     
     boot();
@@ -613,6 +619,9 @@ async function pushToCloud(){
       
       const data = await response.json();
       showNotification(`${data.count} sessões sincronizadas com o cloud!`, "success");
+      
+      // Notificar outras abas sobre a mudança
+      notifyOtherTabs(true);
     } else {
       // Usar Firebase direto
       const batch = fb.db.batch();
@@ -622,6 +631,9 @@ async function pushToCloud(){
       arr.forEach(s => batch.set(col.doc(s.id), { date: s.date, name: s.name, duration: s.duration, rpe: s.rpe }));
       await batch.commit(); 
       showNotification(`${arr.length} sessões sincronizadas com o cloud!`, "success");
+      
+      // Notificar outras abas sobre a mudança
+      notifyOtherTabs(true);
     }
   } catch (error) {
     showNotification("Erro ao sincronizar com o cloud: " + error.message, "error");
@@ -901,6 +913,9 @@ function renderEntriesTable(sessions){
             showNotification("Sessão removida com sucesso!", "success");
           }
           
+          // Notificar outras abas sobre a mudança
+          notifyOtherTabs(true);
+          
       boot();
         } catch (error) {
           showNotification("Erro ao remover sessão.", "error");
@@ -1017,6 +1032,84 @@ function boot(){
   renderCalendar(sessions);
 }
 
+// Função para notificar outras abas sobre mudanças nos dados
+function notifyOtherTabs(dataChanged = true) {
+  try {
+    // Usar BroadcastChannel API para comunicação entre abas
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel('acwr-data-updates');
+      channel.postMessage({
+        type: 'data-updated',
+        timestamp: Date.now(),
+        dataChanged: dataChanged
+      });
+    }
+    
+    // Fallback para localStorage event
+    if (dataChanged) {
+      localStorage.setItem('acwr-last-update', Date.now().toString());
+      // Disparar evento customizado
+      window.dispatchEvent(new CustomEvent('acwr-data-updated', {
+        detail: { timestamp: Date.now() }
+      }));
+    }
+  } catch (error) {
+    console.log('Erro ao notificar outras abas:', error);
+  }
+}
+
+// Função para sincronizar dados com o dashboard
+function syncWithDashboard() {
+  try {
+    const sessions = loadLocal();
+    
+    // Salvar no localStorage com timestamp
+    localStorage.setItem('sessions', JSON.stringify(sessions));
+    localStorage.setItem('acwr-dashboard-sync', Date.now().toString());
+    
+    // Notificar outras abas
+    notifyOtherTabs(true);
+    
+    showNotification('Dados sincronizados com o dashboard! 🔗', 'success');
+  } catch (error) {
+    showNotification('Erro ao sincronizar com dashboard: ' + error.message, 'error');
+  }
+}
+
+// Listener para mudanças em outras abas
+function setupCrossTabListener() {
+  try {
+    // BroadcastChannel API
+    if (typeof BroadcastChannel !== 'undefined') {
+      const channel = new BroadcastChannel('acwr-data-updates');
+      channel.onmessage = (event) => {
+        if (event.data.type === 'data-updated') {
+          console.log('Dados atualizados em outra aba:', event.data);
+          // Atualizar interface se necessário
+          boot();
+        }
+      };
+    }
+    
+    // localStorage event listener
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'acwr-last-update') {
+        console.log('Dados atualizados em outra aba via localStorage');
+        boot();
+      }
+    });
+    
+    // Custom event listener
+    window.addEventListener('acwr-data-updated', (event) => {
+      console.log('Dados atualizados via custom event:', event.detail);
+      boot();
+    });
+    
+  } catch (error) {
+    console.log('Erro ao configurar listener entre abas:', error);
+  }
+}
+
  document.addEventListener("DOMContentLoaded", () => {
    // Aguardar Firebase carregar completamente
    setTimeout(() => {
@@ -1044,6 +1137,9 @@ function boot(){
        }
      });
    }
+  // Configurar listener entre abas
+  setupCrossTabListener();
+  
   document.getElementById("googleBtn").addEventListener("click", googleSignIn);
   document.getElementById("signOutBtn").addEventListener("click", signOut);
   document.getElementById("emailSignIn").addEventListener("click", () => emailSignIn(document.getElementById("emailInput").value, document.getElementById("passInput").value));
@@ -1082,10 +1178,17 @@ function boot(){
         showNotification("Sessão adicionada com sucesso!", "success");
       }
       
+      // Notificar outras abas sobre a mudança
+      notifyOtherTabs(true);
+      
       document.getElementById("nameInput").value=""; 
       document.getElementById("durInput").value=""; 
       document.getElementById("rpeInput").value="";
-    boot();
+      
+      // Notificar outras abas sobre a mudança
+      notifyOtherTabs(true);
+      
+      boot();
     } catch (error) {
       showNotification("Erro ao adicionar sessão.", "error");
     } finally {
@@ -1120,6 +1223,10 @@ function boot(){
       }
       
       saveLocal(sess); 
+      
+      // Notificar outras abas sobre a mudança
+      notifyOtherTabs(true);
+      
       boot();
       showNotification("Dados de demonstração carregados!", "success");
     } catch (error) {
@@ -1150,6 +1257,10 @@ function boot(){
         const arr = fromCSV(ev.target.result); 
         const curr = loadLocal(); 
         saveLocal(curr.concat(arr)); 
+        
+        // Notificar outras abas sobre a mudança
+        notifyOtherTabs(true);
+        
         boot();
         showNotification(`${arr.length} sessões importadas com sucesso!`, "success");
       } catch (error) {
@@ -1161,6 +1272,10 @@ function boot(){
   document.getElementById("clearBtn").addEventListener("click", () => { 
     if(confirm("⚠️ Tem certeza que deseja apagar todas as sessões do armazenamento local? Esta ação não pode ser desfeita.")) { 
       localStorage.removeItem(KEY); 
+      
+      // Notificar outras abas sobre a mudança
+      notifyOtherTabs(true);
+      
       boot();
       showNotification("Todos os dados foram removidos.", "info");
     } 

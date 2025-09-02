@@ -163,17 +163,29 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex justify-between items-center py-4">
         <div class="flex items-center space-x-4">
-          <h1 class="text-2xl font-bold text-gray-900">📊 Dashboard ACWR • sRPE</h1>
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">📊 Dashboard ACWR • sRPE</h1>
+            <p id="lastSyncTime" class="text-sm text-gray-500 mt-1">Última atualização: --</p>
+          </div>
           <span class="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium" id="userStatus">Carregando...</span>
+          <span id="realtimeStatus" class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium hidden">
+            🔄 Tempo Real
+          </span>
         </div>
         <div class="flex items-center space-x-4">
+          <button id="syncMainBtn" class="btn-secondary" onclick="syncWithMainPage()">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+            </svg>
+            Sincronizar
+          </button>
           <a href="index.html" class="btn-secondary">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
             </svg>
             Voltar ao App
           </a>
-          <button id="refreshBtn" class="btn-primary">
+          <button id="refreshBtn" class="btn-primary" onclick="forceRefresh()">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
             </svg>
@@ -187,6 +199,23 @@
   <!-- Main Content -->
   <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
     
+    <!-- Status de Sincronização -->
+    <div class="card p-4 mb-6 bg-gradient-to-r from-blue-50 to-green-50 border-blue-200">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <span class="text-blue-600">📡</span>
+          <div>
+            <h3 class="font-medium text-blue-900">Status de Sincronização</h3>
+            <p class="text-sm text-blue-700">Mantenha o dashboard atualizado automaticamente</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="syncIndicator" class="w-3 h-3 bg-gray-300 rounded-full"></span>
+          <span id="syncStatusText" class="text-sm text-gray-600">Inicializando...</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Filtros -->
     <div class="card p-6 mb-8">
       <h2 class="text-xl font-semibold text-gray-900 mb-4">🔍 Filtros de Período</h2>
@@ -402,6 +431,9 @@
         statusElement.className = "px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium";
         fb.connected = true;
         
+        // Atualizar status de sincronização
+        updateSyncStatus('connecting', 'Conectando...');
+        
         fb.auth.onAuthStateChanged(async (user) => {
           fb.user = user || null;
           fb.uid = user ? user.uid : null;
@@ -411,6 +443,8 @@
               fb.idToken = await user.getIdToken();
             }
             loadData();
+            setupRealTimeListener(); // Configurar listener em tempo real
+            setupCrossTabListener(); // Configurar listener entre abas
           } else {
             fb.idToken = null;
             showNotification("Faça login para ver os dados", "warning");
@@ -420,8 +454,151 @@
         statusElement.textContent = "Erro de conexão";
         statusElement.className = "px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium";
         fb.connected = false;
+        
+        // Atualizar status de sincronização
+        updateSyncStatus('error', 'Erro de conexão');
+        
         showNotification("Falha ao conectar Firebase.", "error");
       }
+    }
+
+    // Configurar listener em tempo real para mudanças nos dados
+    function setupRealTimeListener() {
+      if (!fb.uid || !fb.db) return;
+      
+      try {
+        // Listener para mudanças na coleção de sessões
+        const unsubscribe = fb.db
+          .collection("users")
+          .doc(fb.uid)
+          .collection("sessions")
+          .onSnapshot((snapshot) => {
+            const sessions = [];
+            snapshot.forEach(doc => sessions.push({ ...doc.data(), id: doc.id }));
+            
+            // Atualizar dados locais
+            currentData = sessions;
+            
+            // Atualizar interface
+            updateCharts();
+            updateKPIs();
+            updateTable();
+            updateFilters();
+            
+            // Mostrar notificação de atualização
+            showNotification("Dados atualizados em tempo real! 🔄", "success");
+            
+            // Atualizar timestamp da última sincronização
+            updateLastSyncTime();
+          }, (error) => {
+            console.error("Erro no listener em tempo real:", error);
+            showNotification("Erro na sincronização em tempo real", "error");
+          });
+        
+        // Armazenar função de unsubscribe para limpeza
+        fb.unsubscribe = unsubscribe;
+        
+        showNotification("Sincronização em tempo real ativada! 🚀", "success");
+        
+        // Mostrar indicador visual de tempo real
+        const realtimeElement = document.getElementById('realtimeStatus');
+        if (realtimeElement) {
+          realtimeElement.classList.remove('hidden');
+        }
+        
+        // Atualizar status de sincronização
+        updateSyncStatus('connected', 'Tempo Real Ativo');
+      } catch (error) {
+        console.error("Erro ao configurar listener em tempo real:", error);
+        showNotification("Erro ao configurar sincronização em tempo real", "error");
+      }
+    }
+
+    // Listener para mudanças em outras abas
+    function setupCrossTabListener() {
+      try {
+        // BroadcastChannel API
+        if (typeof BroadcastChannel !== 'undefined') {
+          const channel = new BroadcastChannel('acwr-data-updates');
+          channel.onmessage = (event) => {
+            if (event.data.type === 'data-updated') {
+              console.log('Dados atualizados em outra aba:', event.data);
+              // Atualizar dados automaticamente
+              loadData();
+            }
+          };
+        }
+        
+        // localStorage event listener
+        window.addEventListener('storage', (event) => {
+          if (event.key === 'acwr-last-update' || event.key === 'sessions') {
+            console.log('Dados atualizados em outra aba via localStorage');
+            // Atualizar dados automaticamente
+            loadData();
+          }
+        });
+        
+        // Custom event listener
+        window.addEventListener('acwr-data-updated', (event) => {
+          console.log('Dados atualizados via custom event:', event.detail);
+          // Atualizar dados automaticamente
+          loadData();
+        });
+        
+        showNotification('Sincronização entre abas ativada! 🔗', 'success');
+        
+        // Atualizar status de sincronização
+        updateSyncStatus('connected', 'Entre Abas Ativo');
+        
+      } catch (error) {
+        console.log('Erro ao configurar listener entre abas:', error);
+      }
+    }
+
+    // Atualizar indicador de status de sincronização
+    function updateSyncStatus(status, message) {
+      const indicator = document.getElementById('syncIndicator');
+      const statusText = document.getElementById('syncStatusText');
+      
+      if (indicator && statusText) {
+        // Atualizar cor do indicador
+        indicator.className = `w-3 h-3 rounded-full ${
+          status === 'connected' ? 'bg-green-500' :
+          status === 'connecting' ? 'bg-yellow-500' :
+          status === 'error' ? 'bg-red-500' :
+          'bg-gray-300'
+        }`;
+        
+        // Atualizar texto de status
+        statusText.textContent = message;
+        statusText.className = `text-sm ${
+          status === 'connected' ? 'text-green-600' :
+          status === 'connecting' ? 'text-yellow-600' :
+          status === 'error' ? 'text-red-600' :
+          'text-gray-600'
+        }`;
+      }
+    }
+
+    // Atualizar timestamp da última sincronização
+    function updateLastSyncTime() {
+      const now = new Date();
+      const timeString = now.toLocaleTimeString('pt-BR');
+      const dateString = now.toLocaleDateString('pt-BR');
+      
+      const syncElement = document.getElementById('lastSyncTime');
+      if (syncElement) {
+        syncElement.textContent = `Última atualização: ${dateString} às ${timeString}`;
+        syncElement.className = "text-sm text-green-600 font-medium";
+        
+        // Reset para cor normal após 3 segundos
+        setTimeout(() => {
+          syncElement.className = "text-sm text-gray-500";
+        }, 3000);
+      }
+      
+      // Atualizar status de sincronização
+      updateSyncStatus('connected', 'Sincronizado');
     }
 
     // Carregar dados
@@ -448,9 +625,58 @@
         updateKPIs();
         updateTable();
         updateFilters();
+        updateLastSyncTime();
+        
+        showNotification(`${sessions.length} sessões carregadas com sucesso! 📊`, "success");
+        
+        // Atualizar status de sincronização
+        updateSyncStatus('connected', `${sessions.length} sessões`);
         
       } catch (error) {
         showNotification("Erro ao carregar dados: " + error.message, "error");
+        updateSyncStatus('error', 'Erro ao carregar');
+      }
+    }
+
+    // Função para forçar atualização manual
+    async function forceRefresh() {
+      const refreshBtn = document.getElementById('refreshBtn');
+      addLoadingState(refreshBtn);
+      
+      try {
+        updateSyncStatus('connecting', 'Atualizando...');
+        await loadData();
+        showNotification("Dados atualizados manualmente! 🔄", "success");
+      } catch (error) {
+        showNotification("Erro ao atualizar dados: " + error.message, "error");
+        updateSyncStatus('error', 'Erro na atualização');
+      } finally {
+        removeLoadingState(refreshBtn);
+      }
+    }
+
+    // Função para sincronizar com a página principal
+    function syncWithMainPage() {
+      try {
+        // Tentar ler dados do localStorage da página principal
+        const mainPageData = localStorage.getItem('sessions');
+        if (mainPageData) {
+          const sessions = JSON.parse(mainPageData);
+          currentData = sessions;
+          updateCharts();
+          updateKPIs();
+          updateTable();
+          updateFilters();
+          updateLastSyncTime();
+          
+          showNotification("Sincronizado com a página principal! 🔗", "success");
+          updateSyncStatus('connected', 'Sincronizado com App');
+        } else {
+          showNotification("Nenhum dado encontrado na página principal", "info");
+          updateSyncStatus('error', 'Nenhum dado encontrado');
+        }
+      } catch (error) {
+        showNotification("Erro ao sincronizar com página principal: " + error.message, "error");
       }
     }
 
@@ -814,6 +1040,9 @@
 
     // Event Listeners
     document.addEventListener('DOMContentLoaded', () => {
+      // Atualizar status inicial
+      updateSyncStatus('connecting', 'Inicializando...');
+      
       setTimeout(() => {
         if (typeof FIREBASE_CONFIG !== 'undefined' && typeof firebase !== 'undefined') {
           connectFirebase();
@@ -823,11 +1052,7 @@
         }
       }, 1000);
       
-      document.getElementById('refreshBtn').addEventListener('click', () => {
-        const btn = document.getElementById('refreshBtn');
-        addLoadingState(btn);
-        loadData().finally(() => removeLoadingState(btn));
-      });
+      // Event listeners já configurados via onclick nos botões
       
       document.getElementById('applyFilters').addEventListener('click', () => {
         updateCharts();
