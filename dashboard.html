@@ -158,6 +158,10 @@
 </head>
 
 <body>
+  <div id="globalLoader" style="display:none" class="fixed inset-0 bg-white/60 flex items-center justify-center z-50">
+    <div class="loading"></div>
+    <span class="ml-3 text-gray-700 font-semibold">Carregando...</span>
+  </div>
   <!-- Header -->
   <header class="bg-white shadow-sm border-b border-gray-200">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -343,6 +347,7 @@
     let fb = { app:null, auth:null, db:null, uid:null, user:null, connected:false, idToken:null, useBackend: false };
     let charts = {};
     let currentData = [];
+    const LOCAL_KEY = 'acwr_sessions_v1';
 
     // Funções de utilidade
     function showNotification(message, type = 'info') {
@@ -414,6 +419,7 @@
           } else {
             fb.idToken = null;
             showNotification("Faça login para ver os dados", "warning");
+            loadData();
           }
         });
       } catch (e) {
@@ -427,6 +433,8 @@
     // Carregar dados
     async function loadData() {
       try {
+        const loader = document.getElementById('globalLoader');
+        if (loader) loader.style.display = 'flex';
         let sessions = [];
         
         if (fb.useBackend && fb.idToken) {
@@ -435,12 +443,12 @@
           });
           const data = await response.json();
           sessions = data.sessions || [];
-        } else if (fb.db) {
+        } else if (fb.db && fb.uid) {
           const snap = await fb.db.collection("users").doc(fb.uid).collection("sessions").get();
           snap.forEach(doc => sessions.push({ ...doc.data(), id: doc.id }));
         } else {
           // Fallback para localStorage
-          sessions = JSON.parse(localStorage.getItem('sessions') || '[]');
+          sessions = JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
         }
         
         currentData = sessions;
@@ -451,6 +459,10 @@
         
       } catch (error) {
         showNotification("Erro ao carregar dados: " + error.message, "error");
+      }
+      finally {
+        const loader = document.getElementById('globalLoader');
+        if (loader) loader.style.display = 'none';
       }
     }
 
@@ -751,6 +763,16 @@
       const filteredData = getFilteredData();
       const tbody = document.getElementById('dataTable');
       
+      if (filteredData.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="5" class="px-6 py-8 text-center text-gray-500">
+              Nenhuma sessão registrada. Volte ao app e adicione sessões.
+            </td>
+          </tr>`;
+        return;
+      }
+
       tbody.innerHTML = filteredData
         .sort((a, b) => new Date(b.date) - new Date(a.date))
         .map(session => `
@@ -841,6 +863,29 @@
       
       document.getElementById('fromDate').value = thirtyDaysAgo.toISOString().split('T')[0];
       document.getElementById('toDate').value = today.toISOString().split('T')[0];
+
+      // Carregar dados imediatamente (inclui fallback localStorage quando não autenticado)
+      loadData();
+
+      // Atualizar quando localStorage mudar em outra aba/janela
+      window.addEventListener('storage', (e) => {
+        if (e.key === LOCAL_KEY) {
+          try {
+            currentData = JSON.parse(e.newValue || '[]');
+            updateCharts();
+            updateKPIs();
+            updateTable();
+            showNotification('Dados atualizados', 'info');
+          } catch (err) {}
+        }
+      });
+
+      // Recarregar ao voltar foco para a aba
+      document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+          loadData();
+        }
+      });
     });
   </script>
 </body>
