@@ -183,6 +183,12 @@
           </span>
         </div>
         <div class="flex items-center space-x-4">
+          <button id="testChartsBtn" class="btn-secondary" onclick="testChartsUpdate()">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Testar Gráficos
+          </button>
           <button id="syncMainBtn" class="btn-secondary" onclick="syncWithMainPage()">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
@@ -524,9 +530,13 @@
             loadData();
             setupRealTimeListener(); // Configurar listener em tempo real
             setupCrossTabListener(); // Configurar listener entre abas
+            
+            // Iniciar polling como fallback
+            startPolling();
           } else {
             fb.idToken = null;
             showNotification("Faça login para ver os dados", "warning");
+            stopPolling(); // Parar polling se não estiver logado
           }
         });
       } catch (e) {
@@ -587,50 +597,88 @@
         
         // Atualizar status de sincronização
         updateSyncStatus('connected', 'Tempo Real Ativo');
+        
+        // Parar polling se listener em tempo real estiver funcionando
+        stopPolling();
+        
       } catch (error) {
         console.error("Erro ao configurar listener em tempo real:", error);
         showNotification("Erro ao configurar sincronização em tempo real", "error");
+        
+        // Fallback para polling em caso de erro
+        startPolling();
       }
     }
 
     // Listener para mudanças em outras abas
     function setupCrossTabListener() {
       try {
+        console.log('🔗 Configurando listener entre abas...');
+        
         // BroadcastChannel API
         if (typeof BroadcastChannel !== 'undefined') {
           const channel = new BroadcastChannel('acwr-data-updates');
           channel.onmessage = (event) => {
             if (event.data.type === 'data-updated') {
-              console.log('Dados atualizados em outra aba:', event.data);
-              // Atualizar dados automaticamente
-              loadData();
+              console.log('📡 Dados atualizados via BroadcastChannel:', event.data);
+              // Forçar atualização imediata
+              setTimeout(() => {
+                forceUpdateCharts();
+              }, 100);
             }
           };
+          console.log('✅ BroadcastChannel configurado');
+        } else {
+          console.log('⚠️ BroadcastChannel não disponível');
         }
         
-        // localStorage event listener
+        // localStorage event listener (funciona entre abas)
         window.addEventListener('storage', (event) => {
           if (event.key === 'acwr-last-update' || event.key === 'sessions') {
-            console.log('Dados atualizados em outra aba via localStorage');
-            // Atualizar dados automaticamente
-            loadData();
+            console.log('💾 Dados atualizados via localStorage:', event.key);
+            // Forçar atualização imediata
+            setTimeout(() => {
+              forceUpdateCharts();
+            }, 100);
           }
         });
         
-        // Custom event listener
+        // Custom event listener (mesma aba)
         window.addEventListener('acwr-data-updated', (event) => {
-          console.log('Dados atualizados via custom event:', event.detail);
-          // Atualizar dados automaticamente
-          loadData();
+          console.log('🎯 Dados atualizados via custom event:', event.detail);
+          // Forçar atualização imediata
+          setTimeout(() => {
+            forceUpdateCharts();
+          }, 100);
         });
         
-        showNotification('Sincronização entre abas ativada! 🔗', 'success');
+        // Listener para mudanças no localStorage (mesma aba)
+        // Usar MutationObserver para detectar mudanças no localStorage
+        const originalSetItem = localStorage.setItem;
+        localStorage.setItem = function(key, value) {
+          originalSetItem.apply(this, arguments);
+          
+          if (key === 'sessions') {
+            console.log('💾 Sessões alteradas no localStorage (mesma aba)');
+            try {
+              const sessions = JSON.parse(value || '[]');
+              currentData = sessions;
+              // Pequeno delay para garantir que os dados foram processados
+              setTimeout(() => {
+                forceUpdateCharts();
+              }, 50);
+            } catch (error) {
+              console.log('Erro ao processar mudança no localStorage:', error);
+            }
+          }
+        };
         
-        // Atualizar status de sincronização
+        showNotification('Sincronização entre abas ativada! 🔗', 'success');
         updateSyncStatus('connected', 'Entre Abas Ativo');
         
       } catch (error) {
-        console.log('Erro ao configurar listener entre abas:', error);
+        console.error('❌ Erro ao configurar listener entre abas:', error);
+        showNotification('Erro na sincronização entre abas', 'error');
       }
     }
 
@@ -825,6 +873,10 @@
         }
         
         await loadData();
+        
+        // Forçar atualização dos gráficos após carregar dados
+        forceUpdateCharts();
+        
         showNotification("Dados atualizados manualmente! 🔄", "success");
       } catch (error) {
         showNotification("Erro ao atualizar dados: " + error.message, "error");
@@ -837,24 +889,28 @@
     // Função para sincronizar com a página principal
     function syncWithMainPage() {
       try {
+        console.log('🔗 Sincronizando com página principal...');
+        
         // Tentar ler dados do localStorage da página principal
         const mainPageData = localStorage.getItem('sessions');
         if (mainPageData) {
           const sessions = JSON.parse(mainPageData);
+          console.log('📊 Dados encontrados no localStorage:', sessions.length, 'sessões');
+          
           currentData = sessions;
-          updateCharts();
-          updateKPIs();
-          updateTable();
-          updateFilters();
-          updateLastSyncTime();
+          
+          // Forçar atualização completa
+          forceUpdateCharts();
           
           showNotification("Sincronizado com a página principal! 🔗", "success");
           updateSyncStatus('connected', 'Sincronizado com App');
         } else {
+          console.log('⚠️ Nenhum dado encontrado no localStorage');
           showNotification("Nenhum dado encontrado na página principal", "info");
           updateSyncStatus('error', 'Nenhum dado encontrado');
         }
       } catch (error) {
+        console.error('❌ Erro ao sincronizar com página principal:', error);
         showNotification("Erro ao sincronizar com página principal: " + error.message, "error");
       }
     }
@@ -1427,6 +1483,118 @@
       return filtered;
     }
 
+    // Sistema de polling para garantir atualização dos gráficos
+    let pollingInterval = null;
+    
+    // Iniciar sistema de polling
+    function startPolling() {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+      
+      // Polling a cada 5 segundos para garantir sincronização
+      pollingInterval = setInterval(async () => {
+        if (fb.uid && fb.connected) {
+          console.log('🔄 Polling: verificando atualizações...');
+          try {
+            await checkForUpdates();
+          } catch (error) {
+            console.log('Erro no polling:', error);
+          }
+        }
+      }, 5000);
+      
+      console.log('✅ Sistema de polling iniciado (5s)');
+    }
+    
+    // Parar sistema de polling
+    function stopPolling() {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+        pollingInterval = null;
+        console.log('⏹️ Sistema de polling parado');
+      }
+    }
+    
+    // Verificar se há atualizações
+    async function checkForUpdates() {
+      try {
+        let newSessions = [];
+        
+        if (fb.useBackend && fb.idToken) {
+          const response = await fetch(`${BACKEND_URL}/api/sessions/${fb.uid}`, {
+            headers: { 'Authorization': `Bearer ${fb.idToken}` }
+          });
+          const data = await response.json();
+          newSessions = data.sessions || [];
+        } else if (fb.db) {
+          const snap = await fb.db.collection("users").doc(fb.uid).collection("sessions").get();
+          snap.forEach(doc => newSessions.push({ ...doc.data(), id: doc.id }));
+        } else {
+          // Fallback para localStorage
+          newSessions = JSON.parse(localStorage.getItem('sessions') || '[]');
+        }
+        
+        // Verificar se os dados mudaram
+        const dataChanged = JSON.stringify(newSessions) !== JSON.stringify(currentData);
+        
+        if (dataChanged) {
+          console.log('🔄 Dados detectados como alterados, atualizando gráficos...');
+          currentData = newSessions;
+          forceUpdateCharts();
+        }
+      } catch (error) {
+        console.log('Erro ao verificar atualizações:', error);
+      }
+    }
+    
+    // Função para testar atualização dos gráficos
+    function testChartsUpdate() {
+      console.log('🧪 Testando atualização dos gráficos...');
+      
+      try {
+        // Verificar se Chart.js está disponível
+        if (!checkChartJS()) {
+          showNotification('Chart.js não está disponível', 'error');
+          return;
+        }
+        
+        // Verificar se há dados
+        if (!currentData || currentData.length === 0) {
+          showNotification('Nenhum dado disponível para testar', 'warning');
+          return;
+        }
+        
+        console.log('📊 Dados atuais:', currentData.length, 'sessões');
+        
+        // Forçar atualização dos gráficos
+        forceUpdateCharts();
+        
+        showNotification('Teste dos gráficos executado com sucesso! ✅', 'success');
+        
+      } catch (error) {
+        console.error('❌ Erro no teste dos gráficos:', error);
+        showNotification('Erro no teste dos gráficos: ' + error.message, 'error');
+      }
+    }
+    
+    // Função para forçar atualização dos gráficos
+    function forceUpdateCharts() {
+      console.log('🚀 Forçando atualização dos gráficos...');
+      
+      // Atualizar todos os componentes da interface
+      updateCharts();
+      updateKPIs();
+      updateTable();
+      updateFilters();
+      updateLastSyncTime();
+      
+      // Atualizar status
+      updateSyncStatus('connected', `${currentData.length} sessões`);
+      
+      showNotification('Gráficos atualizados automaticamente! 🔄', 'success');
+    }
+    
     // Event Listeners
     document.addEventListener('DOMContentLoaded', () => {
       console.log('🚀 Dashboard inicializando...');

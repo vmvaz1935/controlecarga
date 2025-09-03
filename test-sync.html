@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Teste de Sincronização - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <style>
+    .notification {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 1rem 1.5rem;
+      border-radius: 0.75rem;
+      color: white;
+      font-weight: 600;
+      z-index: 1000;
+      transform: translateX(100%);
+      transition: transform 0.3s ease;
+    }
+    
+    .notification.show {
+      transform: translateX(0);
+    }
+    
+    .notification.success { background: #10b981; }
+    .notification.error { background: #ef4444; }
+    .notification.info { background: #3b82f6; }
+    .notification.warning { background: #f59e0b; }
+  </style>
+</head>
+<body class="bg-gray-100 p-8">
+  <div class="max-w-4xl mx-auto">
+    <h1 class="text-3xl font-bold text-gray-900 mb-8">🧪 Teste de Sincronização do Dashboard</h1>
+    
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <!-- Teste de Dados -->
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">📊 Gerenciar Dados de Teste</h3>
+        
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Data:</label>
+            <input type="date" id="testDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Atividade:</label>
+            <input type="text" id="testActivity" placeholder="Ex: Corrida" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Duração (min):</label>
+            <input type="number" id="testDuration" placeholder="45" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">RPE:</label>
+            <input type="number" id="testRPE" min="1" max="10" placeholder="7" class="w-full px-3 py-2 border border-gray-300 rounded-lg">
+          </div>
+          
+          <button onclick="addTestSession()" class="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+            ➕ Adicionar Sessão de Teste
+          </button>
+        </div>
+      </div>
+      
+      <!-- Status de Sincronização -->
+      <div class="bg-white p-6 rounded-lg shadow">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">📡 Status de Sincronização</h3>
+        
+        <div class="space-y-4">
+          <div>
+            <strong>Dados no localStorage:</strong>
+            <div id="localStorageStatus" class="text-sm text-gray-600 mt-1">Verificando...</div>
+          </div>
+          
+          <div>
+            <strong>Última atualização:</strong>
+            <div id="lastUpdateStatus" class="text-sm text-gray-600 mt-1">--</div>
+          </div>
+          
+          <div>
+            <strong>BroadcastChannel:</strong>
+            <div id="broadcastStatus" class="text-sm text-gray-600 mt-1">--</div>
+          </div>
+          
+          <button onclick="checkSyncStatus()" class="w-full px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">
+            🔍 Verificar Status
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Controles de Teste -->
+    <div class="bg-white p-6 rounded-lg shadow mb-8">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">🎮 Controles de Teste</h3>
+      
+      <div class="flex gap-4 flex-wrap">
+        <button onclick="addSampleData()" class="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600">
+          📊 Adicionar Dados de Exemplo
+        </button>
+        <button onclick="clearTestData()" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">
+          🗑️ Limpar Dados de Teste
+        </button>
+        <button onclick="testBroadcastChannel()" class="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600">
+          📡 Testar BroadcastChannel
+        </button>
+        <button onclick="testLocalStorage()" class="px-4 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600">
+          💾 Testar localStorage
+        </button>
+      </div>
+    </div>
+
+    <!-- Logs de Debug -->
+    <div class="bg-white p-6 rounded-lg shadow">
+      <h3 class="text-lg font-semibold text-gray-900 mb-4">📝 Logs de Debug</h3>
+      <div id="debugLog" class="bg-gray-100 p-4 rounded text-sm font-mono h-64 overflow-y-auto">
+        <div class="text-gray-500">Logs aparecerão aqui...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Container -->
+  <div id="notificationContainer"></div>
+
+  <script>
+    // Função para log
+    function log(message) {
+      const debugLog = document.getElementById('debugLog');
+      const timestamp = new Date().toLocaleTimeString();
+      debugLog.innerHTML += `<div class="mb-2"><span class="text-gray-500">[${timestamp}]</span> ${message}</div>`;
+      debugLog.scrollTop = debugLog.scrollHeight;
+      console.log(message);
+    }
+    
+    // Função para mostrar notificação
+    function showNotification(message, type = 'info') {
+      const container = document.getElementById('notificationContainer');
+      const notification = document.createElement('div');
+      notification.className = `notification ${type}`;
+      notification.textContent = message;
+      container.appendChild(notification);
+      
+      setTimeout(() => notification.classList.add('show'), 100);
+      setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => container.removeChild(notification), 300);
+      }, 3000);
+    }
+    
+    // Configurar data atual
+    document.getElementById('testDate').value = new Date().toISOString().split('T')[0];
+    
+    // Adicionar sessão de teste
+    function addTestSession() {
+      const date = document.getElementById('testDate').value;
+      const activity = document.getElementById('testActivity').value;
+      const duration = parseInt(document.getElementById('testDuration').value);
+      const rpe = parseInt(document.getElementById('testRPE').value);
+      
+      if (!date || !activity || !duration || !rpe) {
+        showNotification('Preencha todos os campos', 'error');
+        return;
+      }
+      
+      try {
+        const sessions = JSON.parse(localStorage.getItem('sessions') || '[]');
+        const newSession = {
+          id: crypto.randomUUID(),
+          date: date,
+          name: activity,
+          duration: duration,
+          rpe: rpe
+        };
+        
+        sessions.push(newSession);
+        localStorage.setItem('sessions', JSON.stringify(sessions));
+        
+        // Notificar outras abas
+        notifyOtherTabs(true);
+        
+        // Atualizar status
+        updateStatus();
+        
+        showNotification('Sessão de teste adicionada! ✅', 'success');
+        log(`✅ Sessão adicionada: ${activity} - ${duration}min - RPE ${rpe}`);
+        
+        // Limpar campos
+        document.getElementById('testActivity').value = '';
+        document.getElementById('testDuration').value = '';
+        document.getElementById('testRPE').value = '';
+        
+      } catch (error) {
+        showNotification('Erro ao adicionar sessão: ' + error.message, 'error');
+        log(`❌ Erro: ${error.message}`);
+      }
+    }
+    
+    // Adicionar dados de exemplo
+    function addSampleData() {
+      try {
+        const sampleData = [
+          { date: '2024-12-01', name: 'Corrida', duration: 45, rpe: 7 },
+          { date: '2024-12-02', name: 'Musculação', duration: 60, rpe: 8 },
+          { date: '2024-12-03', name: 'Natação', duration: 30, rpe: 6 },
+          { date: '2024-12-04', name: 'Yoga', duration: 45, rpe: 4 },
+          { date: '2024-12-05', name: 'Ciclismo', duration: 90, rpe: 8 }
+        ];
+        
+        const sessions = sampleData.map(s => ({
+          ...s,
+          id: crypto.randomUUID()
+        }));
+        
+        localStorage.setItem('sessions', JSON.stringify(sessions));
+        
+        // Notificar outras abas
+        notifyOtherTabs(true);
+        
+        // Atualizar status
+        updateStatus();
+        
+        showNotification('Dados de exemplo adicionados! 📊', 'success');
+        log(`✅ ${sessions.length} sessões de exemplo adicionadas`);
+        
+      } catch (error) {
+        showNotification('Erro ao adicionar dados de exemplo: ' + error.message, 'error');
+        log(`❌ Erro: ${error.message}`);
+      }
+    }
+    
+    // Limpar dados de teste
+    function clearTestData() {
+      if (confirm('Tem certeza que deseja limpar todos os dados de teste?')) {
+        localStorage.removeItem('sessions');
+        
+        // Notificar outras abas
+        notifyOtherTabs(true);
+        
+        // Atualizar status
+        updateStatus();
+        
+        showNotification('Dados de teste removidos! 🗑️', 'info');
+        log('🗑️ Dados de teste removidos');
+      }
+    }
+    
+    // Testar BroadcastChannel
+    function testBroadcastChannel() {
+      try {
+        if (typeof BroadcastChannel !== 'undefined') {
+          const channel = new BroadcastChannel('acwr-data-updates');
+          channel.postMessage({
+            type: 'data-updated',
+            timestamp: Date.now(),
+            test: true
+          });
+          
+          showNotification('BroadcastChannel testado! 📡', 'success');
+          log('📡 BroadcastChannel testado com sucesso');
+        } else {
+          showNotification('BroadcastChannel não disponível', 'warning');
+          log('⚠️ BroadcastChannel não disponível neste navegador');
+        }
+      } catch (error) {
+        showNotification('Erro ao testar BroadcastChannel: ' + error.message, 'error');
+        log(`❌ Erro no BroadcastChannel: ${error.message}`);
+      }
+    }
+    
+    // Testar localStorage
+    function testLocalStorage() {
+      try {
+        const testKey = 'acwr-test-' + Date.now();
+        const testValue = 'test-value';
+        
+        localStorage.setItem(testKey, testValue);
+        const retrieved = localStorage.getItem(testKey);
+        localStorage.removeItem(testKey);
+        
+        if (retrieved === testValue) {
+          showNotification('localStorage funcionando! 💾', 'success');
+          log('💾 localStorage testado com sucesso');
+        } else {
+          showNotification('localStorage com problema', 'error');
+          log('❌ localStorage com problema');
+        }
+      } catch (error) {
+        showNotification('Erro no localStorage: ' + error.message, 'error');
+        log(`❌ Erro no localStorage: ${error.message}`);
+      }
+    }
+    
+    // Verificar status de sincronização
+    function checkSyncStatus() {
+      updateStatus();
+      showNotification('Status verificado! 🔍', 'info');
+      log('🔍 Status de sincronização verificado');
+    }
+    
+    // Atualizar status na interface
+    function updateStatus() {
+      try {
+        const sessions = JSON.parse(localStorage.getItem('sessions') || '[]');
+        document.getElementById('localStorageStatus').textContent = `${sessions.length} sessões`;
+        
+        const lastUpdate = localStorage.getItem('acwr-last-update');
+        document.getElementById('lastUpdateStatus').textContent = lastUpdate ? 
+          new Date(parseInt(lastUpdate)).toLocaleString('pt-BR') : 'Nunca';
+        
+        const broadcastAvailable = typeof BroadcastChannel !== 'undefined';
+        document.getElementById('broadcastStatus').textContent = broadcastAvailable ? 
+          'Disponível' : 'Não disponível';
+        
+      } catch (error) {
+        log(`❌ Erro ao atualizar status: ${error.message}`);
+      }
+    }
+    
+    // Notificar outras abas
+    function notifyOtherTabs(dataChanged = true) {
+      try {
+        // Usar BroadcastChannel API para comunicação entre abas
+        if (typeof BroadcastChannel !== 'undefined') {
+          const channel = new BroadcastChannel('acwr-data-updates');
+          channel.postMessage({
+            type: 'data-updated',
+            timestamp: Date.now(),
+            dataChanged: dataChanged
+          });
+        }
+        
+        // Fallback para localStorage event
+        if (dataChanged) {
+          localStorage.setItem('acwr-last-update', Date.now().toString());
+          // Disparar evento customizado
+          window.dispatchEvent(new CustomEvent('acwr-data-updated', {
+            detail: { timestamp: Date.now() }
+          }));
+        }
+        
+        log('📡 Outras abas notificadas');
+      } catch (error) {
+        log(`❌ Erro ao notificar outras abas: ${error.message}`);
+      }
+    }
+    
+    // Configurar listener para mudanças em outras abas
+    function setupCrossTabListener() {
+      try {
+        // BroadcastChannel API
+        if (typeof BroadcastChannel !== 'undefined') {
+          const channel = new BroadcastChannel('acwr-data-updates');
+          channel.onmessage = (event) => {
+            if (event.data.type === 'data-updated') {
+              log('📡 Dados atualizados em outra aba via BroadcastChannel');
+              updateStatus();
+            }
+          };
+        }
+        
+        // localStorage event listener
+        window.addEventListener('storage', (event) => {
+          if (event.key === 'acwr-last-update' || event.key === 'sessions') {
+            log('💾 Dados atualizados em outra aba via localStorage');
+            updateStatus();
+          }
+        });
+        
+        // Custom event listener
+        window.addEventListener('acwr-data-updated', (event) => {
+          log('🎯 Dados atualizados via custom event');
+          updateStatus();
+        });
+        
+        log('✅ Listener entre abas configurado');
+      } catch (error) {
+        log(`❌ Erro ao configurar listener entre abas: ${error.message}`);
+      }
+    }
+    
+    // Inicializar quando a página carregar
+    document.addEventListener('DOMContentLoaded', () => {
+      log('🚀 Página de teste de sincronização carregada!');
+      
+      // Configurar listener entre abas
+      setupCrossTabListener();
+      
+      // Atualizar status inicial
+      updateStatus();
+      
+      log('✅ Teste inicializado com sucesso!');
+    });
+  </script>
+</body>
+</html>
