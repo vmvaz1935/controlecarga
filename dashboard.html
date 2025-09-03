@@ -189,7 +189,7 @@
             </svg>
             Testar Gráficos
           </button>
-          <button id="syncMainBtn" class="btn-secondary" onclick="syncWithMainPage()">
+          <button id="syncMainBtn" class="btn-secondary" onclick="forceSync()">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
             </svg>
@@ -528,15 +528,13 @@
               fb.idToken = await user.getIdToken();
             }
             loadData();
-            setupRealTimeListener(); // Configurar listener em tempo real
-            setupCrossTabListener(); // Configurar listener entre abas
             
-            // Iniciar polling como fallback
-            startPolling();
+            // Usar sistema de sincronização simplificado
+            setupSimpleSync();
+            
           } else {
             fb.idToken = null;
             showNotification("Faça login para ver os dados", "warning");
-            stopPolling(); // Parar polling se não estiver logado
           }
         });
       } catch (e) {
@@ -551,136 +549,90 @@
       }
     }
 
-    // Configurar listener em tempo real para mudanças nos dados
-    function setupRealTimeListener() {
-      if (!fb.uid || !fb.db) return;
+    // Sistema de sincronização simplificado e direto
+    function setupSimpleSync() {
+      console.log('🔗 Configurando sincronização simplificada...');
       
-      try {
-        // Listener para mudanças na coleção de sessões
-        const unsubscribe = fb.db
-          .collection("users")
-          .doc(fb.uid)
-          .collection("sessions")
-          .onSnapshot((snapshot) => {
-            const sessions = [];
-            snapshot.forEach(doc => sessions.push({ ...doc.data(), id: doc.id }));
-            
-            // Atualizar dados locais
+      // 1. Listener para mudanças no localStorage (mesma aba)
+      const originalSetItem = localStorage.setItem;
+      localStorage.setItem = function(key, value) {
+        originalSetItem.apply(this, arguments);
+        
+        if (key === 'sessions') {
+          console.log('💾 Sessões alteradas no localStorage - ATUALIZANDO GRÁFICOS!');
+          try {
+            const sessions = JSON.parse(value || '[]');
             currentData = sessions;
             
-            // Atualizar interface
-            updateCharts();
-            updateKPIs();
-            updateTable();
-            updateFilters();
+            // Atualizar gráficos imediatamente
+            setTimeout(() => {
+              updateCharts();
+              updateKPIs();
+              updateTable();
+              updateFilters();
+              showNotification('Dados atualizados automaticamente! 🔄', 'success');
+            }, 100);
             
-            // Mostrar notificação de atualização
-            showNotification("Dados atualizados em tempo real! 🔄", "success");
-            
-            // Atualizar timestamp da última sincronização
-            updateLastSyncTime();
-          }, (error) => {
-            console.error("Erro no listener em tempo real:", error);
-            showNotification("Erro na sincronização em tempo real", "error");
-          });
-        
-        // Armazenar função de unsubscribe para limpeza
-        fb.unsubscribe = unsubscribe;
-        
-        showNotification("Sincronização em tempo real ativada! 🚀", "success");
-        
-        // Mostrar indicador visual de tempo real
-        const realtimeElement = document.getElementById('realtimeStatus');
-        if (realtimeElement) {
-          realtimeElement.classList.remove('hidden');
+          } catch (error) {
+            console.log('Erro ao processar mudança no localStorage:', error);
+          }
         }
-        
-        // Atualizar status de sincronização
-        updateSyncStatus('connected', 'Tempo Real Ativo');
-        
-        // Parar polling se listener em tempo real estiver funcionando
-        stopPolling();
-        
-      } catch (error) {
-        console.error("Erro ao configurar listener em tempo real:", error);
-        showNotification("Erro ao configurar sincronização em tempo real", "error");
-        
-        // Fallback para polling em caso de erro
-        startPolling();
-      }
+      };
+      
+      // 2. Listener para mudanças em outras abas
+      window.addEventListener('storage', (event) => {
+        if (event.key === 'sessions') {
+          console.log('💾 Sessões alteradas em outra aba - ATUALIZANDO GRÁFICOS!');
+          try {
+            const sessions = JSON.parse(event.newValue || '[]');
+            currentData = sessions;
+            
+            // Atualizar gráficos imediatamente
+            setTimeout(() => {
+              updateCharts();
+              updateKPIs();
+              updateTable();
+              updateFilters();
+              showNotification('Dados sincronizados de outra aba! 🔄', 'success');
+            }, 100);
+            
+          } catch (error) {
+            console.log('Erro ao processar mudança de outra aba:', error);
+          }
+        }
+      });
+      
+      // 3. Polling simples a cada 3 segundos
+      setInterval(() => {
+        if (fb.uid && fb.connected) {
+          const storedSessions = localStorage.getItem('sessions');
+          if (storedSessions) {
+            try {
+              const sessions = JSON.parse(storedSessions);
+              const dataChanged = JSON.stringify(sessions) !== JSON.stringify(currentData);
+              
+              if (dataChanged) {
+                console.log('🔄 Polling detectou mudança - ATUALIZANDO GRÁFICOS!');
+                currentData = sessions;
+                
+                updateCharts();
+                updateKPIs();
+                updateTable();
+                updateFilters();
+                showNotification('Dados atualizados via polling! 🔄', 'success');
+              }
+            } catch (error) {
+              console.log('Erro no polling:', error);
+            }
+          }
+        }
+      }, 3000);
+      
+      console.log('✅ Sincronização simplificada configurada');
+      showNotification('Sincronização automática ativada! 🔄', 'success');
     }
 
-    // Listener para mudanças em outras abas
-    function setupCrossTabListener() {
-      try {
-        console.log('🔗 Configurando listener entre abas...');
-        
-        // BroadcastChannel API
-        if (typeof BroadcastChannel !== 'undefined') {
-          const channel = new BroadcastChannel('acwr-data-updates');
-          channel.onmessage = (event) => {
-            if (event.data.type === 'data-updated') {
-              console.log('📡 Dados atualizados via BroadcastChannel:', event.data);
-              // Forçar atualização imediata
-              setTimeout(() => {
-                forceUpdateCharts();
-              }, 100);
-            }
-          };
-          console.log('✅ BroadcastChannel configurado');
-        } else {
-          console.log('⚠️ BroadcastChannel não disponível');
-        }
-        
-        // localStorage event listener (funciona entre abas)
-        window.addEventListener('storage', (event) => {
-          if (event.key === 'acwr-last-update' || event.key === 'sessions') {
-            console.log('💾 Dados atualizados via localStorage:', event.key);
-            // Forçar atualização imediata
-            setTimeout(() => {
-              forceUpdateCharts();
-            }, 100);
-          }
-        });
-        
-        // Custom event listener (mesma aba)
-        window.addEventListener('acwr-data-updated', (event) => {
-          console.log('🎯 Dados atualizados via custom event:', event.detail);
-          // Forçar atualização imediata
-          setTimeout(() => {
-            forceUpdateCharts();
-          }, 100);
-        });
-        
-        // Listener para mudanças no localStorage (mesma aba)
-        // Usar MutationObserver para detectar mudanças no localStorage
-        const originalSetItem = localStorage.setItem;
-        localStorage.setItem = function(key, value) {
-          originalSetItem.apply(this, arguments);
-          
-          if (key === 'sessions') {
-            console.log('💾 Sessões alteradas no localStorage (mesma aba)');
-            try {
-              const sessions = JSON.parse(value || '[]');
-              currentData = sessions;
-              // Pequeno delay para garantir que os dados foram processados
-              setTimeout(() => {
-                forceUpdateCharts();
-              }, 50);
-            } catch (error) {
-              console.log('Erro ao processar mudança no localStorage:', error);
-            }
-          }
-        };
-        
-        showNotification('Sincronização entre abas ativada! 🔗', 'success');
-        updateSyncStatus('connected', 'Entre Abas Ativo');
-        
-      } catch (error) {
-        console.error('❌ Erro ao configurar listener entre abas:', error);
-        showNotification('Erro na sincronização entre abas', 'error');
-      }
-    }
+
 
     // Atualizar indicador de status de sincronização
     function updateSyncStatus(status, message) {
@@ -859,33 +811,148 @@
       return true;
     }
 
-    // Função para forçar atualização manual
-    async function forceRefresh() {
-      const refreshBtn = document.getElementById('refreshBtn');
-      addLoadingState(refreshBtn);
+    // Função simplificada para atualizar gráficos
+    function updateCharts() {
+      console.log('🔄 Atualizando gráficos...');
       
       try {
-        updateSyncStatus('connecting', 'Atualizando...');
-        
         // Verificar se Chart.js está disponível
-        if (!checkChartJS()) {
-          throw new Error('Chart.js não está disponível');
+        if (typeof Chart === 'undefined') {
+          console.error('❌ Chart.js não está disponível!');
+          showNotification('Chart.js não está disponível', 'error');
+          return;
         }
         
-        await loadData();
+        // Verificar se há dados
+        if (!currentData || currentData.length === 0) {
+          console.log('⚠️ Nenhum dado para exibir');
+          showEmptyCharts();
+          return;
+        }
         
-        // Forçar atualização dos gráficos após carregar dados
-        forceUpdateCharts();
+        console.log('📊 Dados disponíveis:', currentData.length, 'sessões');
         
-        showNotification("Dados atualizados manualmente! 🔄", "success");
+        // Atualizar cada gráfico individualmente
+        updateTimelineChart(currentData);
+        updateRPEChart(currentData);
+        updateActivityChart(currentData);
+        updateWeeklyLoadChart(currentData);
+        
+        console.log('✅ Todos os gráficos atualizados com sucesso!');
+        
       } catch (error) {
-        showNotification("Erro ao atualizar dados: " + error.message, "error");
-        updateSyncStatus('error', 'Erro na atualização');
-      } finally {
-        removeLoadingState(refreshBtn);
+        console.error('❌ Erro ao atualizar gráficos:', error);
+        showNotification('Erro ao atualizar gráficos: ' + error.message, 'error');
       }
     }
-
+    
+    // Mostrar gráficos vazios quando não há dados
+    function showEmptyCharts() {
+      try {
+        // Timeline Chart vazio
+        const timelineCanvas = document.getElementById('timelineChart');
+        if (timelineCanvas) {
+          const ctx = timelineCanvas.getContext('2d');
+          if (charts.timeline) charts.timeline.destroy();
+          charts.timeline = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false }
+              }
+            }
+          });
+          addNoDataMessage('timelineChart', 'Nenhuma sessão encontrada');
+        }
+        
+        // RPE Chart vazio
+        const rpeCanvas = document.getElementById('rpeChart');
+        if (rpeCanvas) {
+          const ctx = rpeCanvas.getContext('2d');
+          if (charts.rpe) charts.rpe.destroy();
+          charts.rpe = new Chart(ctx, {
+            type: 'bar',
+            data: { labels: [], datasets: [] },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false }
+              }
+            }
+          });
+          addNoDataMessage('rpeChart', 'Nenhuma sessão encontrada');
+        }
+        
+        // Activity Chart vazio
+        const activityCanvas = document.getElementById('activityChart');
+        if (activityCanvas) {
+          const ctx = activityCanvas.getContext('2d');
+          if (charts.activity) charts.activity.destroy();
+          charts.activity = new Chart(ctx, {
+            type: 'doughnut',
+            data: { labels: [], datasets: [] },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false }
+              }
+            }
+          });
+          addNoDataMessage('activityChart', 'Nenhuma sessão encontrada');
+        }
+        
+        // Weekly Load Chart vazio
+        const weeklyCanvas = document.getElementById('weeklyLoadChart');
+        if (weeklyCanvas) {
+          const ctx = weeklyCanvas.getContext('2d');
+          if (charts.weeklyLoad) charts.weeklyLoad.destroy();
+          charts.weeklyLoad = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [] },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false }
+              }
+            }
+          });
+          addNoDataMessage('weeklyLoadChart', 'Nenhuma sessão encontrada');
+        }
+        
+        console.log('✅ Gráficos vazios exibidos');
+        
+      } catch (error) {
+        console.error('❌ Erro ao mostrar gráficos vazios:', error);
+      }
+    }
+    
+    // Função para forçar atualização dos gráficos
+    function forceUpdateCharts() {
+      console.log('🚀 Forçando atualização dos gráficos...');
+      
+      // Atualizar todos os componentes da interface
+      updateCharts();
+      updateKPIs();
+      updateTable();
+      updateFilters();
+      updateLastSyncTime();
+      
+      // Atualizar status
+      updateSyncStatus('connected', `${currentData.length} sessões`);
+      
+      showNotification('Gráficos atualizados automaticamente! 🔄', 'success');
+    }
+    
     // Função para sincronizar com a página principal
     function syncWithMainPage() {
       try {
@@ -914,46 +981,61 @@
         showNotification("Erro ao sincronizar com página principal: " + error.message, "error");
       }
     }
-
-    // Atualizar gráficos
-    function updateCharts() {
-      console.log('🔄 Atualizando gráficos...');
-      const filteredData = getFilteredData();
-      console.log('📊 Dados filtrados:', filteredData.length, 'sessões');
+    
+    // Função para forçar atualização manual
+    async function forceRefresh() {
+      const refreshBtn = document.getElementById('refreshBtn');
+      addLoadingState(refreshBtn);
       
       try {
-        // Mostrar indicadores de carregamento
-        showChartLoading('timelineChart');
-        showChartLoading('rpeChart');
-        showChartLoading('activityChart');
-        showChartLoading('weeklyLoadChart');
+        updateSyncStatus('connecting', 'Atualizando...');
         
-        // Timeline Chart
-        console.log('📈 Atualizando gráfico de evolução temporal...');
-        updateTimelineChart(filteredData);
+        // Verificar se Chart.js está disponível
+        if (!checkChartJS()) {
+          throw new Error('Chart.js não está disponível');
+        }
         
-        // RPE Distribution Chart
-        console.log('📊 Atualizando gráfico de distribuição RPE...');
-        updateRPEChart(filteredData);
+        await loadData();
         
-        // Activity Chart
-        console.log('🥧 Atualizando gráfico de tipos de atividade...');
-        updateActivityChart(filteredData);
+        // Forçar atualização dos gráficos após carregar dados
+        forceUpdateCharts();
         
-        // Weekly Load Chart
-        console.log('📅 Atualizando gráfico de carga semanal...');
-        updateWeeklyLoadChart(filteredData);
-        
-        console.log('✅ Todos os gráficos atualizados com sucesso!');
+        showNotification("Dados atualizados manualmente! 🔄", "success");
       } catch (error) {
-        console.error('❌ Erro ao atualizar gráficos:', error);
-        showNotification('Erro ao atualizar gráficos: ' + error.message, 'error');
+        showNotification("Erro ao atualizar dados: " + error.message, "error");
+        updateSyncStatus('error', 'Erro na atualização');
+      } finally {
+        removeLoadingState(refreshBtn);
+      }
+    }
+    
+    // Função para testar atualização dos gráficos
+    function testChartsUpdate() {
+      console.log('🧪 Testando atualização dos gráficos...');
+      
+      try {
+        // Verificar se Chart.js está disponível
+        if (!checkChartJS()) {
+          showNotification('Chart.js não está disponível', 'error');
+          return;
+        }
         
-        // Esconder indicadores de carregamento em caso de erro
-        hideChartLoading('timelineChart');
-        hideChartLoading('rpeChart');
-        hideChartLoading('activityChart');
-        hideChartLoading('weeklyLoadChart');
+        // Verificar se há dados
+        if (!currentData || currentData.length === 0) {
+          showNotification('Nenhum dado disponível para testar', 'warning');
+          return;
+        }
+        
+        console.log('📊 Dados atuais:', currentData.length, 'sessões');
+        
+        // Forçar atualização dos gráficos
+        forceUpdateCharts();
+        
+        showNotification('Teste dos gráficos executado com sucesso! ✅', 'success');
+        
+      } catch (error) {
+        console.error('❌ Erro no teste dos gráficos:', error);
+        showNotification('Erro no teste dos gráficos: ' + error.message, 'error');
       }
     }
 
@@ -1483,118 +1565,121 @@
       return filtered;
     }
 
-    // Sistema de polling para garantir atualização dos gráficos
-    let pollingInterval = null;
+
     
-    // Iniciar sistema de polling
-    function startPolling() {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-      }
+    // Sistema de sincronização simplificado e direto
+    function setupSimpleSync() {
+      console.log('🔗 Configurando sincronização simplificada...');
       
-      // Polling a cada 5 segundos para garantir sincronização
-      pollingInterval = setInterval(async () => {
-        if (fb.uid && fb.connected) {
-          console.log('🔄 Polling: verificando atualizações...');
+      // 1. Listener para mudanças no localStorage (mesma aba)
+      const originalSetItem = localStorage.setItem;
+      localStorage.setItem = function(key, value) {
+        originalSetItem.apply(this, arguments);
+        
+        if (key === 'sessions') {
+          console.log('💾 Sessões alteradas no localStorage - ATUALIZANDO GRÁFICOS!');
           try {
-            await checkForUpdates();
+            const sessions = JSON.parse(value || '[]');
+            currentData = sessions;
+            
+            // Atualizar gráficos imediatamente
+            setTimeout(() => {
+              updateCharts();
+              updateKPIs();
+              updateTable();
+              updateFilters();
+              showNotification('Dados atualizados automaticamente! 🔄', 'success');
+            }, 100);
+            
           } catch (error) {
-            console.log('Erro no polling:', error);
+            console.log('Erro ao processar mudança no localStorage:', error);
           }
         }
-      }, 5000);
+      };
       
-      console.log('✅ Sistema de polling iniciado (5s)');
+      // 2. Listener para mudanças em outras abas
+      window.addEventListener('storage', (event) => {
+        if (event.key === 'sessions') {
+          console.log('💾 Sessões alteradas em outra aba - ATUALIZANDO GRÁFICOS!');
+          try {
+            const sessions = JSON.parse(event.newValue || '[]');
+            currentData = sessions;
+            
+            // Atualizar gráficos imediatamente
+            setTimeout(() => {
+              updateCharts();
+              updateKPIs();
+              updateTable();
+              updateFilters();
+              showNotification('Dados sincronizados de outra aba! 🔄', 'success');
+            }, 100);
+            
+          } catch (error) {
+            console.log('Erro ao processar mudança de outra aba:', error);
+          }
+        }
+      });
+      
+      // 3. Polling simples a cada 3 segundos
+      setInterval(() => {
+        if (fb.uid && fb.connected) {
+          const storedSessions = localStorage.getItem('sessions');
+          if (storedSessions) {
+            try {
+              const sessions = JSON.parse(storedSessions);
+              const dataChanged = JSON.stringify(sessions) !== JSON.stringify(currentData);
+              
+              if (dataChanged) {
+                console.log('🔄 Polling detectou mudança - ATUALIZANDO GRÁFICOS!');
+                currentData = sessions;
+                
+                updateCharts();
+                updateKPIs();
+                updateTable();
+                updateFilters();
+                showNotification('Dados atualizados via polling! 🔄', 'success');
+              }
+            } catch (error) {
+              console.log('Erro no polling:', error);
+            }
+          }
+        }
+      }, 3000);
+      
+      console.log('✅ Sincronização simplificada configurada');
+      showNotification('Sincronização automática ativada! 🔄', 'success');
     }
     
-    // Parar sistema de polling
-    function stopPolling() {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-        pollingInterval = null;
-        console.log('⏹️ Sistema de polling parado');
-      }
-    }
-    
-    // Verificar se há atualizações
-    async function checkForUpdates() {
+    // Função para forçar sincronização manual
+    function forceSync() {
+      console.log('🚀 Forçando sincronização manual...');
+      
       try {
-        let newSessions = [];
-        
-        if (fb.useBackend && fb.idToken) {
-          const response = await fetch(`${BACKEND_URL}/api/sessions/${fb.uid}`, {
-            headers: { 'Authorization': `Bearer ${fb.idToken}` }
-          });
-          const data = await response.json();
-          newSessions = data.sessions || [];
-        } else if (fb.db) {
-          const snap = await fb.db.collection("users").doc(fb.uid).collection("sessions").get();
-          snap.forEach(doc => newSessions.push({ ...doc.data(), id: doc.id }));
+        // Ler dados do localStorage
+        const storedSessions = localStorage.getItem('sessions');
+        if (storedSessions) {
+          const sessions = JSON.parse(storedSessions);
+          console.log('📊 Dados encontrados:', sessions.length, 'sessões');
+          
+          currentData = sessions;
+          
+          // Atualizar tudo
+          updateCharts();
+          updateKPIs();
+          updateTable();
+          updateFilters();
+          updateLastSyncTime();
+          
+          showNotification('Sincronização forçada executada! ✅', 'success');
         } else {
-          // Fallback para localStorage
-          newSessions = JSON.parse(localStorage.getItem('sessions') || '[]');
-        }
-        
-        // Verificar se os dados mudaram
-        const dataChanged = JSON.stringify(newSessions) !== JSON.stringify(currentData);
-        
-        if (dataChanged) {
-          console.log('🔄 Dados detectados como alterados, atualizando gráficos...');
-          currentData = newSessions;
-          forceUpdateCharts();
+          showNotification('Nenhum dado encontrado no localStorage', 'warning');
         }
       } catch (error) {
-        console.log('Erro ao verificar atualizações:', error);
+        console.error('❌ Erro na sincronização forçada:', error);
+        showNotification('Erro na sincronização: ' + error.message, 'error');
       }
     }
-    
-    // Função para testar atualização dos gráficos
-    function testChartsUpdate() {
-      console.log('🧪 Testando atualização dos gráficos...');
-      
-      try {
-        // Verificar se Chart.js está disponível
-        if (!checkChartJS()) {
-          showNotification('Chart.js não está disponível', 'error');
-          return;
-        }
-        
-        // Verificar se há dados
-        if (!currentData || currentData.length === 0) {
-          showNotification('Nenhum dado disponível para testar', 'warning');
-          return;
-        }
-        
-        console.log('📊 Dados atuais:', currentData.length, 'sessões');
-        
-        // Forçar atualização dos gráficos
-        forceUpdateCharts();
-        
-        showNotification('Teste dos gráficos executado com sucesso! ✅', 'success');
-        
-      } catch (error) {
-        console.error('❌ Erro no teste dos gráficos:', error);
-        showNotification('Erro no teste dos gráficos: ' + error.message, 'error');
-      }
-    }
-    
-    // Função para forçar atualização dos gráficos
-    function forceUpdateCharts() {
-      console.log('🚀 Forçando atualização dos gráficos...');
-      
-      // Atualizar todos os componentes da interface
-      updateCharts();
-      updateKPIs();
-      updateTable();
-      updateFilters();
-      updateLastSyncTime();
-      
-      // Atualizar status
-      updateSyncStatus('connected', `${currentData.length} sessões`);
-      
-      showNotification('Gráficos atualizados automaticamente! 🔄', 'success');
-    }
-    
+
     // Event Listeners
     document.addEventListener('DOMContentLoaded', () => {
       console.log('🚀 Dashboard inicializando...');
