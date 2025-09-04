@@ -1,125 +1,172 @@
-# ACWR • sRPE Dashboard App
+# ACWR Training Monitor
 
-[![Deploy to GitHub Pages](https://github.com/vmvaz1935/controlecarga/actions/workflows/deploy.yml/badge.svg)](https://github.com/vmvaz1935/controlecarga/actions/workflows/deploy.yml)
-[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Live-blue?style=flat&logo=github)](https://vmvaz1935.github.io/controlecarga/)
+Um aplicativo moderno e responsivo para monitoramento de treinos e análise de carga de trabalho aguda:crônica (ACWR).
 
-Dashboard moderno e intuitivo para controle de carga de treinamento usando ACWR (Acute:Chronic Workload Ratio) e sRPE (session Rating of Perceived Exertion).
+## 🚀 Características
 
-## 🚀 Demo Online
+### ✨ Design Moderno
+- **Interface Glassmorphism**: Design moderno com efeitos de vidro e blur
+- **Responsivo**: Funciona perfeitamente em desktop, tablet e mobile
+- **Gradientes**: Cores vibrantes e gradientes suaves
+- **Animações**: Transições suaves e efeitos hover
 
-**Acesse a aplicação:** [https://vmvaz1935.github.io/controlecarga/](https://vmvaz1935.github.io/controlecarga/)
+### 📊 Funcionalidades Principais
+- **Entrada de Dados**: Formulário intuitivo para adicionar sessões de treino
+- **Dashboard Interativo**: Gráficos em tempo real com Chart.js
+- **Análise ACWR**: Cálculo automático da relação aguda:crônica
+- **Histórico**: Visualização e gerenciamento de todas as sessões
+- **Sincronização**: Dados salvos localmente e na nuvem (Firebase)
 
-## ✨ Características
+### 📈 Gráficos Disponíveis
+1. **Evolução Temporal**: RPE e carga de treino ao longo do tempo
+2. **Distribuição RPE**: Frequência de cada nível de RPE
+3. **Tipos de Atividade**: Distribuição por modalidade esportiva
+4. **Carga Semanal**: Volume de treino por semana
 
-- 🎨 **Design Moderno**: Interface elegante com gradientes e animações
-- 📱 **Responsivo**: Funciona perfeitamente em desktop e mobile
-- 🔒 **Seguro**: Credenciais do Firebase protegidas
-- ⚡ **Rápido**: Carregamento instantâneo e feedback visual
-- ☁️ **Sincronizado**: Dados salvos no Firebase Cloud
-- 📊 **Analítico**: Gráficos e métricas em tempo real
-- 🎯 **Intuitivo**: UX otimizada com atalhos de teclado
+### 🔐 Autenticação
+- **Login com Google**: Integração com Firebase Auth
+- **Dados Seguros**: Informações protegidas por usuário
+- **Backup Local**: localStorage como fallback
 
-## 🔐 Configuração do Firebase
+## 🛠️ Tecnologias Utilizadas
 
-### ✅ Configuração Automática
+- **Frontend**: HTML5, CSS3, JavaScript ES6+
+- **Styling**: Tailwind CSS + CSS Custom Properties
+- **Gráficos**: Chart.js
+- **Backend**: Firebase (Firestore + Auth)
+- **Fontes**: Google Fonts (Inter)
+- **Ícones**: Emojis nativos
 
-O Firebase já está configurado automaticamente! As credenciais estão protegidas no backend e não são visíveis na interface.
+## 📱 Como Usar
 
-**Arquivos protegidos:**
-- `config.js` - Configuração do cliente Firebase
-- `app-controle-de-carga-d7aab-firebase-adminsdk-fbsvc-5ce0f69631.json` - Service Account (backend)
+### 1. Adicionar Treino
+- Acesse a aba "📝 Adicionar Treino"
+- Preencha os dados: data, atividade, duração e RPE
+- Clique em "➕ Adicionar Treino"
 
-### 🔒 Segurança Implementada
+### 2. Visualizar Dashboard
+- Acesse a aba "📊 Dashboard"
+- Visualize os gráficos em tempo real
+- Monitore KPIs importantes
 
-- ✅ Credenciais no backend (não visíveis na interface)
-- ✅ Arquivos sensíveis no `.gitignore`
-- ✅ Conexão automática ao carregar a página
-- ✅ Autenticação obrigatória para acesso aos dados
+### 3. Histórico
+- Acesse a aba "📋 Histórico"
+- Veja todas as sessões de treino
+- Filtre por período
+- Exclua sessões se necessário
 
-### 📁 Estrutura de arquivos:
+## 🔧 Configuração
 
+### Firebase Setup
+1. Crie um projeto no [Firebase Console](https://console.firebase.google.com)
+2. Ative Authentication (Google Provider)
+3. Ative Firestore Database
+4. Copie as credenciais para o arquivo `index.html`
+
+### Execução Local
+```bash
+# Clone o repositório
+git clone <repository-url>
+
+# Abra o arquivo index.html em um navegador
+# Ou use um servidor local:
+python -m http.server 8000
+# Acesse: http://localhost:8000
 ```
-├── index.html          # Aplicação principal
-├── config.js           # 🔒 Configuração Firebase (automática)
-├── config.example.js   # 📋 Exemplo de configuração
-├── .gitignore          # Lista de arquivos ignorados pelo Git
-└── README.md           # Este arquivo
-```
 
-## 🚀 Como usar:
+## 📊 Métricas ACWR
 
-### 🌐 **Online (Recomendado)**
-1. Acesse [https://vmvaz1935.github.io/controlecarga/](https://vmvaz1935.github.io/controlecarga/)
-2. Configure o Firebase seguindo os passos abaixo
-3. Faça login com Google ou crie uma conta com email/senha
-4. Comece a registrar suas sessões de treino
+O ACWR (Acute:Chronic Workload Ratio) é calculado como:
+- **Carga Aguda**: Soma da carga de treino dos últimos 7 dias
+- **Carga Crônica**: Média da carga de treino dos últimos 28 dias
+- **ACWR**: Carga Aguda ÷ Carga Crônica
 
-### 💻 **Local**
-1. Clone o repositório: `git clone https://github.com/vmvaz1935/controlecarga.git`
-2. Configure o Firebase seguindo os passos abaixo
-3. Abra o `Index.html` no navegador
-4. Faça login e comece a usar
+### Interpretação:
+- **< 0.8**: Baixo risco de lesão
+- **0.8 - 1.3**: Zona ideal
+- **> 1.3**: Alto risco de lesão
 
-## 🔒 Segurança:
+## 🎨 Design System
 
-- ✅ Credenciais do Firebase em arquivo separado
-- ✅ Arquivo `config.js` no `.gitignore`
-- ✅ Regras do Firestore configuradas para segurança por usuário
-- ✅ Autenticação obrigatória para acesso aos dados
+### Cores
+- **Primary**: #6366f1 (Indigo)
+- **Secondary**: #8b5cf6 (Purple)
+- **Success**: #10b981 (Emerald)
+- **Warning**: #f59e0b (Amber)
+- **Danger**: #ef4444 (Red)
 
-## 📊 Funcionalidades:
+### Tipografia
+- **Fonte**: Inter (Google Fonts)
+- **Pesos**: 300, 400, 500, 600, 700, 800
 
-- 📈 Cálculo automático de ACWR
-- 📅 Visualização mensal de carga
-- ☁️ Sincronização com Firebase
-- 📤 Exportação para CSV
-- 📥 Importação de dados
-- 🔄 Auto-sync opcional
+### Componentes
+- **Cards**: Glassmorphism com blur
+- **Botões**: Gradientes com hover effects
+- **Inputs**: Bordas animadas
+- **Notificações**: Toast notifications
 
-## 🛡️ Regras do Firestore (já configuradas):
+## 🔄 Sincronização
 
+### Tempo Real
+- **Firebase Firestore**: Sincronização automática
+- **localStorage**: Backup local
+- **Cross-tab**: Sincronização entre abas
+
+### Estrutura de Dados
 ```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userId}/sessions/{docId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
-    }
-  }
+{
+  id: "uuid",
+  date: "2024-01-01",
+  activity: "Corrida",
+  duration: 45,
+  rpe: 7,
+  load: 315, // duration * rpe
+  notes: "Treino leve",
+  timestamp: "2024-01-01T10:00:00.000Z"
 }
 ```
 
-Estas regras garantem que cada usuário só acesse seus próprios dados.
+## 🚀 Deploy
 
-## 🎮 Atalhos de Teclado
+### Firebase Hosting
+```bash
+# Instale Firebase CLI
+npm install -g firebase-tools
 
-- **Ctrl/Cmd + Enter**: Adicionar sessão
-- **Ctrl/Cmd + S**: Salvar no cloud
-- **Ctrl/Cmd + L**: Carregar do cloud
-- **Escape**: Limpar formulário
+# Login
+firebase login
 
-## 📱 Compatibilidade
+# Inicialize o projeto
+firebase init hosting
 
-- ✅ Chrome, Firefox, Safari, Edge
-- ✅ iOS Safari, Chrome Mobile
-- ✅ Android Chrome, Firefox
-- ✅ PWA ready (Progressive Web App)
+# Deploy
+firebase deploy
+```
 
-## 🤝 Contribuindo
+### GitHub Pages
+1. Faça push para o repositório
+2. Ative GitHub Pages nas configurações
+3. Selecione a branch main
 
+## 📝 Licença
+
+Este projeto está sob a licença MIT. Veja o arquivo LICENSE para mais detalhes.
+
+## 🤝 Contribuição
+
+Contribuições são bem-vindas! Por favor:
 1. Faça um fork do projeto
-2. Crie uma branch para sua feature (`git checkout -b feature/AmazingFeature`)
-3. Commit suas mudanças (`git commit -m 'Add some AmazingFeature'`)
-4. Push para a branch (`git push origin feature/AmazingFeature`)
+2. Crie uma branch para sua feature
+3. Commit suas mudanças
+4. Push para a branch
 5. Abra um Pull Request
 
-## 📄 Licença
+## 📞 Suporte
 
-Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para mais detalhes.
+Para suporte ou dúvidas:
+- Abra uma issue no GitHub
+- Entre em contato via email
 
-## 🙏 Agradecimentos
+---
 
-- Firebase pela infraestrutura
-- Chart.js pelos gráficos
-- Tailwind CSS pelo design
-- Comunidade open source
+**ACWR Training Monitor** - Monitore seus treinos de forma inteligente! 🏃‍♂️💪

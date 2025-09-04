@@ -1,1332 +1,406 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ACWR • sRPE Dashboard</title>
-  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <meta http-equiv="Pragma" content="no-cache">
-  <meta http-equiv="Expires" content="0">
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Firebase SDKs (compat) -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-     <!-- Configuração Híbrida (Local + Online) -->
-   <script>
-     // Detectar ambiente
-     const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-     const BACKEND_URL = isLocal ? 'http://localhost:5000' : null;
-     
-     const FIREBASE_CONFIG = {
-       "apiKey":"AIzaSyDXp03zlG1SlbWVbwtGbYjVuO3HmmTF8og",
-       "authDomain":"app-controle-de-carga-d7aab.firebaseapp.com",
-       "projectId":"app-controle-de-carga-d7aab",
-       "storageBucket":"app-controle-de-carga-d7aab.firebasestorage.app",
-       "messagingSenderId":"862654831012",
-       "appId":"1:862654831012:web:cd46334c80d2ce17a40931",
-       "measurementId":"G-3V589Q63DE"
-     };
-   </script>
-  <style>
-    :root { 
-      --bg: #f8fafc; 
-      --card: #ffffff; 
-      --primary: #3b82f6; 
-      --primary-dark: #2563eb;
-      --primary-light: #dbeafe;
-      --muted: #64748b; 
-      --success: #10b981;
-      --warning: #f59e0b;
-      --danger: #ef4444;
-      --border: #e2e8f0;
-      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-      --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-    }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ACWR Training Monitor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@2.29.3/index.min.js"></script>
     
-    * { box-sizing: border-box; }
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
     
-    body { 
-      background: linear-gradient(135deg, var(--bg) 0%, #e2e8f0 100%);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-      line-height: 1.6;
-      margin: 0;
-      min-height: 100vh;
-    }
-    
-    .card { 
-      background: var(--card); 
-      border-radius: 1.5rem; 
-      box-shadow: var(--shadow);
-      border: 1px solid var(--border);
-      transition: all 0.3s ease;
-    }
-    
-    .card:hover {
-      box-shadow: var(--shadow-lg);
-      transform: translateY(-2px);
-    }
-    
-    .chip { 
-      padding: 0.5rem 1rem; 
-      border-radius: 999px; 
-      background: var(--primary-light); 
-      color: var(--primary-dark); 
-      font-size: 0.875rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s ease;
-      border: 1px solid transparent;
-    }
-    
-    .chip:hover {
-      background: var(--primary);
-      color: white;
-      transform: scale(1.05);
-    }
-    
-    .kpi { 
-      font-size: 2rem; 
-      font-weight: 800;
-      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    
-    .kpi-label { 
-      font-size: 0.875rem; 
-      color: var(--muted);
-      font-weight: 500;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-    
-    .btn { 
-      background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-      color: #fff; 
-      padding: 0.75rem 1.5rem; 
-      border-radius: 1rem; 
-      font-weight: 600;
-      border: none;
-      cursor: pointer;
-      transition: all 0.3s ease;
-      font-size: 0.875rem;
-      display: inline-flex;
-      align-items: center;
-      gap: 0.5rem;
-      text-decoration: none;
-    }
-    
-    .btn:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 25px rgba(59, 130, 246, 0.3);
-    }
-    
-    .btn:active {
-      transform: translateY(0);
-    }
-    
-    .btn-secondary { 
-      background: #f1f5f9; 
-      color: #475569;
-      border: 1px solid var(--border);
-    }
-    
-    .btn-secondary:hover {
-      background: #e2e8f0;
-      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-    }
-    
-    .btn-ghost { 
-      background: transparent; 
-      color: var(--primary);
-      border: 1px solid var(--primary);
-    }
-    
-    .btn-ghost:hover {
-      background: var(--primary);
-      color: white;
-    }
-    
-    .small { 
-      font-size: 0.875rem; 
-      color: var(--muted);
-      line-height: 1.5;
-    }
-    
-    .calendar-grid { 
-      display: grid; 
-      grid-template-columns: repeat(7, minmax(0, 1fr)); 
-      gap: 0.5rem; 
-    }
-    
-    .calendar-cell { 
-      min-height: 80px; 
-      border-radius: 1rem; 
-      background: #fff; 
-      position: relative; 
-      padding: 0.75rem;
-      border: 1px solid var(--border);
-      transition: all 0.2s ease;
-    }
-    
-    .calendar-cell:hover {
-      transform: scale(1.05);
-      box-shadow: var(--shadow);
-    }
-    
-    .calendar-load { 
-      position: absolute; 
-      inset: 0; 
-      border-radius: 1rem; 
-      opacity: 0.15;
-      transition: opacity 0.3s ease;
-    }
-    
-    /* Inputs modernos */
-    input, textarea, select {
-      width: 100%;
-      padding: 0.75rem 1rem;
-      border: 2px solid var(--border);
-      border-radius: 1rem;
-      font-size: 0.875rem;
-      transition: all 0.3s ease;
-      background: white;
-    }
-    
-    input:focus, textarea:focus, select:focus {
-      outline: none;
-      border-color: var(--primary);
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-    }
-    
-    /* Animações */
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(20px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-    
-    @keyframes slideIn {
-      from { transform: translateX(-100%); }
-      to { transform: translateX(0); }
-    }
-    
-    .fade-in {
-      animation: fadeIn 0.6s ease-out;
-    }
-    
-    .slide-in {
-      animation: slideIn 0.4s ease-out;
-    }
-    
-    /* Status indicators */
-    .status-low { color: var(--success); }
-    .status-sweet { color: var(--warning); }
-    .status-high { color: var(--danger); }
-    
-    /* Loading states */
-    .loading {
-      opacity: 0.6;
-      pointer-events: none;
-    }
-    
-    /* Responsive improvements */
-    @media (max-width: 768px) {
-      .card { border-radius: 1rem; }
-      .btn { padding: 0.625rem 1.25rem; font-size: 0.8rem; }
-      .kpi { font-size: 1.5rem; }
-      .calendar-cell { min-height: 60px; padding: 0.5rem; }
-    }
-    
-    /* Scrollbar styling */
-    ::-webkit-scrollbar {
-      width: 8px;
-    }
-    
-    ::-webkit-scrollbar-track {
-      background: #f1f5f9;
-      border-radius: 4px;
-    }
-    
-    ::-webkit-scrollbar-thumb {
-      background: #cbd5e1;
-      border-radius: 4px;
-    }
-    
-    ::-webkit-scrollbar-thumb:hover {
-      background: #94a3b8;
-    }
-  </style>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --secondary: #8b5cf6;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #1f2937;
+        }
+        
+        .glass {
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px 0 rgba(99, 102, 241, 0.4);
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px 0 rgba(99, 102, 241, 0.6);
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.2);
+            color: #374151;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 12px 24px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+        
+        .input-field {
+            background: rgba(255, 255, 255, 0.9);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 12px 16px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        
+        .input-field:focus {
+            outline: none;
+            border-color: var(--primary);
+            background: rgba(255, 255, 255, 1);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+        
+        .kpi-card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            padding: 24px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+        
+        .kpi-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px 0 rgba(31, 38, 135, 0.2);
+        }
+        
+        .kpi-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 8px;
+        }
+        
+        .kpi-label {
+            color: #6b7280;
+            font-weight: 500;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .chart-container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 16px 24px;
+            border-radius: 12px;
+            color: white;
+            font-weight: 600;
+            z-index: 1000;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .notification.success { background: linear-gradient(135deg, var(--success) 0%, #059669 100%); }
+        .notification.error { background: linear-gradient(135deg, var(--danger) 0%, #dc2626 100%); }
+        .notification.info { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%); }
+        .notification.warning { background: linear-gradient(135deg, var(--warning) 0%, #d97706 100%); }
+        
+        .tab {
+            padding: 12px 24px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+        }
+        
+        .tab.active {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            box-shadow: 0 4px 15px 0 rgba(99, 102, 241, 0.4);
+        }
+        
+        .tab:not(.active) {
+            background: rgba(255, 255, 255, 0.2);
+            color: #374151;
+        }
+        
+        .tab:not(.active):hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+        
+        .session-item {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 16px;
+            transition: all 0.3s ease;
+        }
+        
+        .session-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px 0 rgba(31, 38, 135, 0.15);
+        }
+        
+        .rpe-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+        
+        .rpe-low { background: #dcfce7; color: #166534; }
+        .rpe-medium { background: #fef3c7; color: #92400e; }
+        .rpe-high { background: #fee2e2; color: #991b1b; }
+        
+        @media (max-width: 768px) {
+            .kpi-value { font-size: 2rem; }
+            .chart-container { padding: 16px; }
+        }
+    </style>
 </head>
-<body class="min-h-screen">
-  <header class="p-4 md:p-6 fade-in">
-    <div class="max-w-6xl mx-auto flex flex-wrap items-center justify-between gap-3">
-      <div class="flex items-center gap-3">
-        <div class="h-12 w-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white font-bold text-lg shadow-lg">AC</div>
-        <div>
-          <h1 class="text-xl md:text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">ACWR • sRPE Dashboard</h1>
-          <p class="text-sm text-gray-500 -mt-1">Controle inteligente de carga de treinamento</p>
-        </div>
-      </div>
-      <div class="flex items-center gap-2">
-        <button id="seedBtn" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
-          <span>🎯</span> Demo
-        </button>
-        <button id="exportBtn" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
-          <span>📤</span> Exportar
-        </button>
-        <label class="btn-secondary px-3 py-2 rounded-lg cursor-pointer flex items-center gap-2">
-          <span>📥</span> Importar
-          <input id="importInput" type="file" accept=".csv" class="hidden" />
-        </label>
-        <button id="clearBtn" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
-          <span>🗑️</span> Limpar
-        </button>
-      </div>
-    </div>
-  </header>
-
-  <main class="p-4 md:p-6">
-    <div class="max-w-6xl mx-auto grid md:grid-cols-5 gap-6">
-             <!-- Left: Auth + Form -->
-       <section class="md:col-span-2 card p-6 space-y-6 fade-in">
-         <div>
-           <h2 class="text-lg font-semibold mb-3 flex items-center gap-2">
-             <span>☁️</span> Sincronização em Nuvem
-           </h2>
-           <p class="small mb-3">Conecte-se ao Firebase para sincronizar seus dados automaticamente.</p>
-           
-           <div id="authBox" class="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
-             <div class="flex flex-wrap items-center gap-2 mb-3">
-               <span class="small">👤 Usuário:</span>
-               <span id="userSpan" class="text-sm font-medium">—</span>
-               <button id="googleBtn" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
-                 <span>🔐</span> Google
-               </button>
-               <button id="signOutBtn" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
-                 <span>🚪</span> Sair
-               </button>
-             </div>
-             <details class="mt-3">
-               <summary class="cursor-pointer text-sm font-medium flex items-center gap-2">
-                 <span>📧</span> Entrar com E-mail/Senha
-               </summary>
-               <div class="grid grid-cols-2 gap-2 mt-3">
-                 <input id="emailInput" type="email" placeholder="email@exemplo.com" class="border rounded-lg p-2 col-span-2">
-                 <input id="passInput" type="password" placeholder="Senha" class="border rounded-lg p-2 col-span-2">
-                 <button id="emailSignIn" class="btn-secondary px-3 py-2 rounded-lg">Entrar</button>
-                 <button id="emailSignUp" class="btn-secondary px-3 py-2 rounded-lg">Criar conta</button>
-                 <button id="emailReset" class="btn-secondary px-3 py-2 rounded-lg col-span-2">Esqueci a senha</button>
-               </div>
-             </details>
-             <div class="mt-3 small">🆔 UID: <b id="uidSpan">—</b></div>
-             <div class="mt-3 flex flex-wrap gap-2">
-               <button id="cloudPull" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
-                 <span>⬇️</span> Carregar
-               </button>
-               <button id="cloudPush" class="btn-secondary px-3 py-2 rounded-lg flex items-center gap-2">
-                 <span>⬆️</span> Salvar
-               </button>
-               <label class="flex items-center gap-2 text-sm">
-                 <input id="autoSync" type="checkbox" /> 🔄 Auto-sync
-               </label>
-             </div>
-             <div class="mt-3 flex items-center gap-2">
-               <span id="cloudStatus" class="small px-3 py-1 bg-green-100 text-green-800 rounded-full">Conectado</span>
-               <span class="text-xs text-gray-500">Firebase configurado automaticamente</span>
-             </div>
-           </div>
-         </div>
-
-         <div class="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
-
-        <h2 class="text-lg font-semibold flex items-center gap-2">
-          <span>➕</span> Nova Sessão
-        </h2>
-        <div class="grid grid-cols-2 gap-4">
-          <div class="col-span-2">
-            <label class="small font-medium">📅 Data</label>
-            <input id="dateInput" type="date" class="w-full border rounded-lg p-3" />
-          </div>
-          <div class="col-span-2">
-            <label class="small font-medium">🏃 Nome da sessão</label>
-            <input id="nameInput" type="text" placeholder="Corrida Intervalada, Força Lower..." class="w-full border rounded-lg p-3" />
-          </div>
-          <div>
-            <label class="small font-medium">⏱️ Duração (min)</label>
-            <input id="durInput" type="number" min="0" class="w-full border rounded-lg p-3" placeholder="60" />
-          </div>
-          <div>
-            <label class="small font-medium">💪 RPE (0–10)</label>
-            <input id="rpeInput" type="number" min="0" max="10" class="w-full border rounded-lg p-3" placeholder="6" />
-            <div class="flex flex-wrap gap-2 mt-2">
-              <span class="chip cursor-pointer" data-rpe="3">3</span>
-              <span class="chip cursor-pointer" data-rpe="4">4</span>
-              <span class="chip cursor-pointer" data-rpe="5">5</span>
-              <span class="chip cursor-pointer" data-rpe="6">6</span>
-              <span class="chip cursor-pointer" data-rpe="7">7</span>
+<body>
+    <!-- Navigation -->
+    <nav class="glass p-4 mb-8">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div class="flex items-center space-x-4">
+                <div class="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center">
+                    <span class="text-white font-bold text-lg">A</span>
+                </div>
+                <h1 class="text-2xl font-bold text-white">ACWR Training Monitor</h1>
             </div>
-          </div>
-          <div class="col-span-2">
-            <button id="addBtn" class="btn w-full flex items-center justify-center gap-2">
-              <span>➕</span> Adicionar sessão
+            <div class="flex items-center space-x-4">
+                <div id="userStatus" class="text-white text-sm px-3 py-1 rounded-full bg-white bg-opacity-20">
+                    Conectando...
+                </div>
+                <button id="loginBtn" class="btn-secondary text-white border-white border-opacity-30">
+                    Login
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="max-w-7xl mx-auto px-4 pb-8">
+        <!-- Tabs -->
+        <div class="flex space-x-4 mb-8">
+            <button class="tab active" onclick="showTab('input')">
+                📝 Adicionar Treino
             </button>
-          </div>
+            <button class="tab" onclick="showTab('dashboard')">
+                📊 Dashboard
+            </button>
+            <button class="tab" onclick="showTab('history')">
+                📋 Histórico
+            </button>
         </div>
 
-        <div class="h-px bg-gradient-to-r from-transparent via-gray-300 to-transparent"></div>
-
-        <h3 class="font-semibold mb-3 flex items-center gap-2">
-          <span>📋</span> Entradas recentes
-        </h3>
-        <div class="max-h-64 overflow-auto">
-          <table class="w-full text-sm">
-            <thead class="sticky top-0 bg-white">
-              <tr class="text-left text-gray-500 border-b">
-                <th class="py-2">Data</th>
-                <th>Dia</th>
-                <th>Nome</th>
-                <th class="text-right">Min</th>
-                <th class="text-right">RPE</th>
-                <th class="text-right">sRPE</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="entriesTbody"></tbody>
-          </table>
-        </div>
-        <p class="small mt-3">💡 sRPE = Duração × RPE. Dados ficam no <b>localStorage</b> e podem ser <b>sincronizados</b> com o <b>Firestore</b>.</p>
-      </section>
-
-      <!-- Right: Dashboard -->
-      <section class="md:col-span-3 card p-6 fade-in">
-        <div class="flex flex-wrap items-center justify-between gap-3 mb-6">
-          <h2 class="text-lg font-semibold flex items-center gap-2">
-            <span>📊</span> Painel de Controle
-          </h2>
-          <div class="flex items-center gap-2">
-            <a href="dashboard.html" class="btn-primary">
-              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-              </svg>
-              Dashboard Completo
-            </a>
-            <label class="small font-medium">📅 Período:</label>
-            <input id="fromInput" type="date" class="border rounded-lg p-2" />
-            <span class="text-gray-400">—</span>
-            <input id="toInput" type="date" class="border rounded-lg p-2" />
-            <button id="applyRangeBtn" class="btn-ghost px-3 py-2 rounded-lg">Aplicar</button>
-          </div>
-        </div>
-
-        <div class="grid md:grid-cols-5 gap-4 mb-6">
-          <div class="p-4 rounded-2xl bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">
-            <div class="kpi" id="kpiAcute">0</div>
-            <div class="kpi-label">Carga Aguda (7d)</div>
-          </div>
-          <div class="p-4 rounded-2xl bg-gradient-to-br from-green-50 to-green-100 border border-green-200">
-            <div class="kpi" id="kpiChronic">0</div>
-            <div class="kpi-label">Carga Crônica (28d)</div>
-          </div>
-          <div class="p-4 rounded-2xl bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200">
-            <div class="kpi" id="kpiACWR">—</div>
-            <div class="kpi-label">ACWR</div>
-          </div>
-          <div class="p-4 rounded-2xl bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200">
-            <div class="kpi" id="kpiStatus">—</div>
-            <div class="kpi-label">Zona</div>
-          </div>
-          <div class="p-4 rounded-2xl bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200">
-            <div class="kpi" id="kpiDaily">0</div>
-            <div class="kpi-label">Carga do dia (sRPE)</div>
-          </div>
-        </div>
-
-        <div class="card p-4 mb-6">
-          <canvas id="acwrChart" height="120"></canvas>
-          <p class="small mt-3 text-center">📈 Linha: ACWR • Barras: Aguda (7d) e Crônica (28d). LOW &lt; 0,8 | SWEET 0,8–1,3 | HIGH &gt; 1,3.</p>
-        </div>
-
-        <div>
-          <div class="flex items-center justify-between mb-4">
-            <h3 class="font-semibold flex items-center gap-2">
-              <span>📅</span> Visão mensal
-            </h3>
-            <div class="flex items-center gap-2">
-              <button id="prevMonth" class="btn-secondary px-3 py-2 rounded-lg">◀</button>
-              <div id="monthLabel" class="min-w-28 text-center font-medium"></div>
-              <button id="nextMonth" class="btn-secondary px-3 py-2 rounded-lg">▶</button>
+        <!-- Input Tab -->
+        <div id="inputTab" class="tab-content">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <!-- Input Form -->
+                <div class="lg:col-span-2">
+                    <div class="card rounded-2xl p-8">
+                        <h2 class="text-2xl font-bold mb-6 text-gray-800">Adicionar Sessão de Treino</h2>
+                        
+                        <form id="trainingForm" class="space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Data do Treino</label>
+                                    <input type="date" id="trainingDate" class="input-field" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Tipo de Atividade</label>
+                                    <select id="activityType" class="input-field" required>
+                                        <option value="">Selecione...</option>
+                                        <option value="Corrida">Corrida</option>
+                                        <option value="Musculação">Musculação</option>
+                                        <option value="Natação">Natação</option>
+                                        <option value="Ciclismo">Ciclismo</option>
+                                        <option value="Yoga">Yoga</option>
+                                        <option value="Pilates">Pilates</option>
+                                        <option value="Crossfit">Crossfit</option>
+                                        <option value="Futebol">Futebol</option>
+                                        <option value="Tênis">Tênis</option>
+                                        <option value="Outro">Outro</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">Duração (minutos)</label>
+                                    <input type="number" id="duration" class="input-field" min="1" max="300" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">RPE (1-10)</label>
+                                    <input type="number" id="rpe" class="input-field" min="1" max="10" required>
+                                    <p class="text-xs text-gray-500 mt-1">1 = Muito fácil, 10 = Máximo esforço</p>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Observações (opcional)</label>
+                                <textarea id="notes" class="input-field" rows="3" placeholder="Detalhes sobre o treino..."></textarea>
+                            </div>
+                            
+                            <button type="submit" class="btn-primary w-full">
+                                ➕ Adicionar Treino
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- KPIs -->
+                <div class="space-y-6">
+                    <div class="kpi-card">
+                        <div class="kpi-value" id="totalSessions">0</div>
+                        <div class="kpi-label">Total de Sessões</div>
+                    </div>
+                    
+                    <div class="kpi-card">
+                        <div class="kpi-value" id="avgRPE">0.0</div>
+                        <div class="kpi-label">RPE Médio</div>
+                    </div>
+                    
+                    <div class="kpi-card">
+                        <div class="kpi-value" id="totalMinutes">0</div>
+                        <div class="kpi-label">Minutos Totais</div>
+                    </div>
+                    
+                    <div class="kpi-card">
+                        <div class="kpi-value" id="acwrValue">0.0</div>
+                        <div class="kpi-label">ACWR</div>
+                    </div>
+                </div>
             </div>
-          </div>
-          <div class="grid grid-cols-7 mb-2 text-xs text-gray-500 font-medium">
-            <div>Seg</div><div>Ter</div><div>Qua</div><div>Qui</div><div>Sex</div><div>Sáb</div><div>Dom</div>
-          </div>
-          <div id="calendar" class="calendar-grid"></div>
         </div>
-      </section>
+
+        <!-- Dashboard Tab -->
+        <div id="dashboardTab" class="tab-content hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Timeline Chart -->
+                <div class="chart-container">
+                    <h3 class="text-xl font-bold mb-4 text-gray-800">Evolução Temporal</h3>
+                    <canvas id="timelineChart" height="300"></canvas>
+                </div>
+                
+                <!-- RPE Distribution -->
+                <div class="chart-container">
+                    <h3 class="text-xl font-bold mb-4 text-gray-800">Distribuição RPE</h3>
+                    <canvas id="rpeChart" height="300"></canvas>
+                </div>
+                
+                <!-- Activity Types -->
+                <div class="chart-container">
+                    <h3 class="text-xl font-bold mb-4 text-gray-800">Tipos de Atividade</h3>
+                    <canvas id="activityChart" height="300"></canvas>
+                </div>
+                
+                <!-- Weekly Load -->
+                <div class="chart-container">
+                    <h3 class="text-xl font-bold mb-4 text-gray-800">Carga Semanal</h3>
+                    <canvas id="weeklyLoadChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- History Tab -->
+        <div id="historyTab" class="tab-content hidden">
+            <div class="card rounded-2xl p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-2xl font-bold text-gray-800">Histórico de Treinos</h2>
+                    <div class="flex space-x-4">
+                        <input type="date" id="filterFrom" class="input-field w-auto">
+                        <input type="date" id="filterTo" class="input-field w-auto">
+                        <button onclick="applyFilters()" class="btn-secondary">Filtrar</button>
+                    </div>
+                </div>
+                
+                <div id="sessionsList" class="space-y-4">
+                    <!-- Sessions will be loaded here -->
+                </div>
+            </div>
+        </div>
     </div>
-  </main>
 
-  <footer class="p-6 text-center small">
-    🚀 Pronto para GitHub Pages e Canva (Embed). Ative os provedores em Authentication e autorize seu domínio.
-  </footer>
+    <!-- Notification Container -->
+    <div id="notificationContainer"></div>
 
-<script>
-// ---------- Firebase Híbrido (Local + Online) ----------
-let fb = { app:null, auth:null, db:null, uid:null, user:null, connected:false, idToken:null, useBackend: false };
+    <!-- Firebase Config -->
+    <script>
+        const FIREBASE_CONFIG = {
+            "apiKey": "AIzaSyDXp03zlG1SlbWVbwtGbYjVuO3HmmTF8og",
+            "authDomain": "app-controle-de-carga-d7aab.firebaseapp.com",
+            "projectId": "app-controle-de-carga-d7aab",
+            "storageBucket": "app-controle-de-carga-d7aab.firebasestorage.app",
+            "messagingSenderId": "862654831012",
+            "appId": "1:862654831012:web:cd46334c80d2ce17a40931",
+            "measurementId": "G-3V589Q63DE"
+        };
+    </script>
 
-async function connectFirebase(){
-  const statusElement = document.getElementById("cloudStatus");
-  
-  try { 
-    // Verificar se Firebase está disponível
-    if (typeof firebase === 'undefined') {
-      throw new Error("Firebase não carregado");
-    }
-    
-    // Inicializar Firebase
-    fb.app = firebase.initializeApp(FIREBASE_CONFIG);
-    fb.auth = firebase.auth();
-    
-    // Verificar se backend está disponível
-    if (BACKEND_URL) {
-      try {
-        const response = await fetch(`${BACKEND_URL}/api/health`, { timeout: 3000 });
-        if (response.ok) {
-          fb.useBackend = true;
-          statusElement.textContent = "Conectado (Backend)";
-          showNotification("Backend conectado com sucesso!", "success");
-        }
-      } catch (e) {
-        console.log("Backend não disponível, usando Firebase direto");
-        fb.useBackend = false;
-        fb.db = firebase.firestore();
-        statusElement.textContent = "Conectado (Firebase)";
-        showNotification("Firebase conectado com sucesso!", "success");
-      }
-    } else {
-      // Online - usar Firebase direto
-      fb.useBackend = false;
-      fb.db = firebase.firestore();
-      statusElement.textContent = "Conectado (Online)";
-      showNotification("Firebase conectado com sucesso!", "success");
-    }
-    
-    statusElement.className = "small px-3 py-1 bg-green-100 text-green-800 rounded-full";
-    fb.connected = true;
-    
-    fb.auth.onAuthStateChanged(async (user) => {
-      fb.user = user || null;
-      fb.uid = user ? user.uid : null;
-      
-      if (user) {
-        if (fb.useBackend) {
-          fb.idToken = await user.getIdToken();
-        }
-        document.getElementById("uidSpan").textContent = fb.uid || "—";
-        document.getElementById("userSpan").textContent = user.email || user.displayName || user.uid;
-        showNotification(`Bem-vindo, ${user.email || user.displayName}!`, "success");
-      } else {
-        fb.idToken = null;
-        document.getElementById("uidSpan").textContent = "—";
-        document.getElementById("userSpan").textContent = "—";
-      }
-    });
-  } catch (e) {
-    statusElement.textContent = "Erro de conexão";
-    statusElement.className = "small px-3 py-1 bg-red-100 text-red-800 rounded-full";
-    fb.connected = false;
-    showNotification("Falha ao conectar Firebase.", "error");
-  }
-}
-
-async function pullFromCloud(){
-  const pullBtn = document.getElementById("cloudPull");
-  addLoadingState(pullBtn);
-  
-  try {
-    if (!fb.uid) {
-      throw new Error("Usuário não autenticado");
-    }
-    
-    if (fb.useBackend && fb.idToken) {
-      // Usar backend
-      const response = await fetch(`${BACKEND_URL}/api/sessions/${fb.uid}`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${fb.idToken}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Erro ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      saveLocal(data.sessions || []); 
-      showNotification(`${data.count} sessões carregadas do cloud!`, "success");
-      
-      // Notificar outras abas sobre a mudança
-      notifyOtherTabs(true);
-    } else {
-      // Usar Firebase direto
-      const snap = await fb.db.collection("users").doc(fb.uid).collection("sessions").get();
-      const arr = []; 
-      snap.forEach(doc => arr.push({ ...doc.data(), id: doc.id }));
-      saveLocal(arr); 
-      showNotification(`${arr.length} sessões carregadas do cloud!`, "success");
-      
-      // Notificar outras abas sobre a mudança
-      notifyOtherTabs(true);
-    }
-    
-    boot();
-  } catch (error) {
-    showNotification("Erro ao carregar dados do cloud: " + error.message, "error");
-  } finally {
-    removeLoadingState(pullBtn);
-  }
-}
-
-async function pushToCloud(){
-  const pushBtn = document.getElementById("cloudPush");
-  addLoadingState(pushBtn);
-  
-  try {
-    if (!fb.uid) {
-      throw new Error("Usuário não autenticado");
-    }
-    
-    const arr = loadLocal();
-    
-    if (fb.useBackend && fb.idToken) {
-      // Usar backend
-      const response = await fetch(`${BACKEND_URL}/api/sessions/${fb.uid}`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${fb.idToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ sessions: arr })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Erro ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      showNotification(`${data.count} sessões sincronizadas com o cloud!`, "success");
-      
-      // Notificar outras abas sobre a mudança
-      notifyOtherTabs(true);
-    } else {
-      // Usar Firebase direto
-      const batch = fb.db.batch();
-      const col = fb.db.collection("users").doc(fb.uid).collection("sessions");
-      const snap = await col.get(); 
-      snap.forEach(doc => batch.delete(doc.ref));
-      arr.forEach(s => batch.set(col.doc(s.id), { date: s.date, name: s.name, duration: s.duration, rpe: s.rpe }));
-      await batch.commit(); 
-      showNotification(`${arr.length} sessões sincronizadas com o cloud!`, "success");
-      
-      // Notificar outras abas sobre a mudança
-      notifyOtherTabs(true);
-    }
-  } catch (error) {
-    showNotification("Erro ao sincronizar com o cloud: " + error.message, "error");
-  } finally {
-    removeLoadingState(pushBtn);
-  }
-}
-
-// ---------- Auth ----------
-async function googleSignIn(){
-  const googleBtn = document.getElementById("googleBtn");
-  addLoadingState(googleBtn);
-  
-  try {
-    // Verificar se Firebase Auth está disponível
-    if (!fb.auth) {
-      throw new Error("Firebase Auth não inicializado");
-    }
-    
-    // Configurar provider com configurações específicas
-    const provider = new firebase.auth.GoogleAuthProvider();
-    provider.addScope('email');
-    provider.addScope('profile');
-    provider.setCustomParameters({
-      prompt: 'select_account'
-    });
-    
-    // Tentar popup primeiro
-    try {
-      console.log("Tentando login com popup...");
-      const result = await fb.auth.signInWithPopup(provider);
-      console.log("Login popup bem-sucedido:", result.user.email);
-      showNotification("Login com Google realizado com sucesso!", "success");
-      return;
-    } catch (popupError) {
-      console.log("Erro no popup:", popupError.code);
-      
-      // Se popup foi bloqueado, tentar redirect
-      if (popupError.code === "auth/popup-blocked" || 
-          popupError.code === "auth/popup-closed-by-user" ||
-          popupError.code === "auth/cancelled-popup-request") {
-        
-        showNotification("Popup bloqueado. Tentando redirecionamento...", "info");
-        
-        try {
-          console.log("Tentando login com redirect...");
-          await fb.auth.signInWithRedirect(provider);
-          showNotification("Redirecionando para login...", "info");
-          return;
-        } catch (redirectError) {
-          console.error("Erro no redirect:", redirectError);
-          throw new Error("Falha no redirecionamento: " + redirectError.message);
-        }
-      }
-      
-      // Outros erros específicos
-      switch (popupError.code) {
-        case "auth/unauthorized-domain":
-          throw new Error("Domínio não autorizado. Adicione " + window.location.hostname + " no Firebase Console.");
-        case "auth/operation-not-allowed":
-          throw new Error("Login Google não habilitado. Configure no Firebase Console.");
-        case "auth/network-request-failed":
-          throw new Error("Erro de rede. Verifique sua conexão.");
-        case "auth/too-many-requests":
-          throw new Error("Muitas tentativas. Tente novamente em alguns minutos.");
-        default:
-          throw new Error("Erro no login: " + popupError.message);
-      }
-    }
-  } catch (error) {
-    console.error("Erro geral no login Google:", error);
-    showNotification(error.message, "error");
-  } finally {
-    removeLoadingState(googleBtn);
-  }
-}
-
-async function emailSignIn(email, pass){ 
-  const signInBtn = document.getElementById("emailSignIn");
-  addLoadingState(signInBtn);
-  
-  try { 
-    await fb.auth.signInWithEmailAndPassword(email, pass); 
-    showNotification("Login realizado com sucesso!", "success");
-  } catch (e) { 
-    showNotification("Erro no login: " + e.message, "error"); 
-  } finally {
-    removeLoadingState(signInBtn);
-  }
-}
-
-async function emailSignUp(email, pass){ 
-  const signUpBtn = document.getElementById("emailSignUp");
-  addLoadingState(signUpBtn);
-  
-  try { 
-    await fb.auth.createUserWithEmailAndPassword(email, pass); 
-    showNotification("Conta criada com sucesso!", "success");
-  } catch (e) { 
-    showNotification("Erro ao criar conta: " + e.message, "error"); 
-  } finally {
-    removeLoadingState(signUpBtn);
-  }
-}
-
-async function emailReset(email){ 
-  const resetBtn = document.getElementById("emailReset");
-  addLoadingState(resetBtn);
-  
-  try { 
-    await fb.auth.sendPasswordResetEmail(email); 
-    showNotification("E-mail de redefinição enviado!", "success");
-  } catch (e) { 
-    showNotification("Erro ao enviar e-mail: " + e.message, "error"); 
-  } finally {
-    removeLoadingState(resetBtn);
-  }
-}
-
-async function signOut(){ 
-  try { 
-    await fb.auth.signOut(); 
-    showNotification("Logout realizado com sucesso!", "info");
-  } catch(e){
-    showNotification("Erro ao fazer logout.", "error");
-  } 
-}
-
-// ---------- Core ----------
-const KEY = "acwr_sessions_v1";
-const $ = (sel) => document.querySelector(sel);
-const $$ = (sel) => Array.from(document.querySelectorAll(sel));
-const fmt = (n) => Number(n || 0).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
-
-function toISODate(d) { return d.toISOString().slice(0,10); }
-function parseISO(s) { const [y,m,da] = s.split('-').map(Number); return new Date(y, m-1, da); }
-function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate()+n); return x; }
-function mondayOf(date) { const d = new Date(date); const day = (d.getDay()+6)%7; d.setDate(d.getDate()-day); d.setHours(0,0,0,0); return d; }
-
-function loadLocal(){ try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch(e){ return []; } }
-function saveLocal(arr){ localStorage.setItem(KEY, JSON.stringify(arr)); }
-
-function sRPE(session){ return Number(session.duration||0) * Number(session.rpe||0); }
-function buildDailySeries(sessions){
-  const map = new Map();
-  sessions.forEach(s => { if(!s.date) return; const key = s.date; map.set(key, (map.get(key)||0) + sRPE(s)); });
-  const dates = Array.from(map.keys()).sort();
-  return dates.map(d => ({ date: d, load: map.get(d) }));
-}
-function rollingSum(series, windowDays, idx){
-  const end = parseISO(series[idx].date);
-  const start = addDays(end, -(windowDays-1));
-  let sum = 0;
-  for(let i=0;i<=idx;i++){ const dt = parseISO(series[i].date); if(dt>=start && dt<=end) sum += series[i].load; }
-  return sum;
-}
-function rollingAvg(series, windowDays, idx){
-  const end = parseISO(series[idx].date);
-  const start = addDays(end, -(windowDays-1));
-  let sum = 0, count = 0;
-  for(let i=0;i<=idx;i++){ const dt = parseISO(series[i].date); if(dt>=start && dt<=end){ sum+=series[i].load; count++; } }
-  return count>0 ? (sum/windowDays) : 0;
-}
-function computeTimeSeries(sessions){
-  const daily = buildDailySeries(sessions);
-  return daily.map((d, i) => {
-    const acute = rollingSum(daily, 7, i);
-    const chronic = rollingAvg(daily, 28, i) * 7;
-    const acwr = chronic>0 ? (acute/chronic) : 0;
-    return { ...d, acute, chronic, acwr };
-  });
-}
-function statusFromACWR(x){ 
-  if(!x || !isFinite(x)) return "—"; 
-  if(x < 0.8) return "LOW"; 
-  if(x <= 1.3) return "SWEET"; 
-  return "HIGH"; 
-}
-
-function getStatusClass(status) {
-  switch(status) {
-    case "LOW": return "status-low";
-    case "SWEET": return "status-sweet";
-    case "HIGH": return "status-high";
-    default: return "";
-  }
-}
-
-function showNotification(message, type = 'info') {
-  const notification = document.createElement('div');
-  notification.className = `fixed top-4 right-4 p-4 rounded-lg text-white font-medium z-50 fade-in ${
-    type === 'success' ? 'bg-green-500' : 
-    type === 'error' ? 'bg-red-500' : 
-    'bg-blue-500'
-  }`;
-  notification.textContent = message;
-  document.body.appendChild(notification);
-  
-  setTimeout(() => {
-    notification.style.opacity = '0';
-    notification.style.transform = 'translateX(100%)';
-    setTimeout(() => notification.remove(), 300);
-  }, 3000);
-}
-
-function addLoadingState(element) {
-  element.classList.add('loading');
-  element.disabled = true;
-}
-
-function removeLoadingState(element) {
-  element.classList.remove('loading');
-  element.disabled = false;
-}
-
-function renderEntriesTable(sessions){
-  const tbody = $("#entriesTbody"); 
-  tbody.innerHTML = "";
-  const sorted = sessions.slice().sort((a,b)=> a.date.localeCompare(b.date)).reverse();
-  
-  if (sorted.length === 0) {
-    const emptyRow = document.createElement("tr");
-    emptyRow.innerHTML = `
-      <td colspan="7" class="text-center py-8 text-gray-500">
-        <div class="flex flex-col items-center gap-2">
-          <span class="text-2xl">📝</span>
-          <span>Nenhuma sessão registrada</span>
-          <span class="text-sm">Adicione sua primeira sessão acima</span>
-        </div>
-      </td>`;
-    tbody.appendChild(emptyRow);
-    return;
-  }
-  
-  sorted.forEach((s, index) => {
-    const dow = ["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"][(parseISO(s.date).getDay()+6)%7];
-    const tr = document.createElement("tr");
-    tr.className = "fade-in";
-    tr.style.animationDelay = `${index * 0.1}s`;
-    tr.innerHTML = `
-      <td class="py-2 font-medium">${s.date||""}</td>
-      <td class="text-gray-600">${dow||""}</td>
-      <td class="font-medium">${s.name||""}</td>
-      <td class="text-right font-medium">${s.duration||""} min</td>
-      <td class="text-right">
-        <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-          ${s.rpe||""}
-        </span>
-      </td>
-      <td class="text-right font-bold text-blue-600">${fmt(sRPE(s))}</td>
-      <td class="text-right">
-        <button class="text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded transition-colors" data-del="${s.id}" title="Remover sessão">
-          🗑️
-        </button>
-      </td>`;
-    tbody.appendChild(tr);
-  });
-  
-  $$("button[data-del]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const id = btn.getAttribute("data-del");
-      const session = sessions.find(s => s.id === id);
-      
-      if (confirm(`Remover sessão "${session?.name || 'Sem nome'}" de ${session?.date}?`)) {
-        try {
-      const next = loadLocal().filter(s => s.id !== id);
-      saveLocal(next);
-          
-          if($("#autoSync").checked && fb.uid) { 
-            try { 
-              await pushToCloud(); 
-              showNotification("Sessão removida e sincronizada!", "success");
-            } catch(e){
-              showNotification("Sessão removida localmente. Erro na sincronização.", "error");
-            }
-          } else {
-            showNotification("Sessão removida com sucesso!", "success");
-          }
-          
-          // Notificar outras abas sobre a mudança
-          notifyOtherTabs(true);
-          
-      boot();
-        } catch (error) {
-          showNotification("Erro ao remover sessão.", "error");
-        }
-      }
-    });
-  });
-}
-
-let chart;
-function renderKPIsAndChart(sessions, fromDate=null, toDate=null){
-  let filtered = sessions.slice();
-  if(fromDate) filtered = filtered.filter(s => s.date >= fromDate);
-  if(toDate) filtered = filtered.filter(s => s.date <= toDate);
-
-  const ts = computeTimeSeries(filtered);
-  const last = ts[ts.length-1];
-  $("#kpiAcute").textContent = last ? fmt(last.acute) : "0";
-  $("#kpiChronic").textContent = last ? fmt(last.chronic) : "0";
-  $("#kpiACWR").textContent = last ? fmt(last.acwr) : "—";
-  $("#kpiDaily").textContent = (filtered.length && last) ? fmt(filtered.filter(s=>s.date===last.date).reduce((a,b)=>a+(b.duration*b.rpe),0)) : "0";
-
-  const status = statusFromACWR(last?.acwr);
-  const statusElement = $("#kpiStatus");
-  statusElement.textContent = status;
-  statusElement.className = `kpi ${getStatusClass(status)}`;
-
-  const labels = ts.map(d=>d.date);
-  const acute = ts.map(d=>d.acute);
-  const chronic = ts.map(d=>d.chronic);
-  const acwr = ts.map(d=>d.acwr);
-
-  const ctx = document.getElementById("acwrChart").getContext("2d");
-  if(chart) chart.destroy();
-  chart = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [
-        { type:"bar", label:"Aguda (7d)", data: acute, borderWidth:0, backgroundColor:"rgba(37,99,235,.35)" },
-        { type:"bar", label:"Crônica (28d)", data: chronic, borderWidth:0, backgroundColor:"rgba(16,185,129,.35)" },
-        { type:"line", label:"ACWR", data: acwr, yAxisID:"y1", borderWidth:2, tension:.2, pointRadius:2, borderColor:"#111827" }
-      ]
-    },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      scales: { y: { beginAtZero:true, title:{display:true, text:"Carga (sRPE)"} }, y1: { beginAtZero:true, position:"right", title:{display:true, text:"ACWR"} } },
-      plugins: { legend: { display: true } }
-    }
-  });
-}
-
-let calRef = new Date();
-function renderCalendar(sessions){
-  const grid = document.getElementById("calendar"); 
-  grid.innerHTML = "";
-  const y = calRef.getFullYear(), m = calRef.getMonth();
-  const first = new Date(y, m, 1);
-  const monthName = first.toLocaleDateString("pt-BR", { month:"long", year:"numeric" });
-  document.getElementById("monthLabel").textContent = monthName[0].toUpperCase()+monthName.slice(1);
-
-  const start = mondayOf(first);
-  for(let i=0;i<42;i++){ 
-    const day = addDays(start, i); 
-    const iso = toISODate(day); 
-    const sameMonth = (day.getMonth()===m);
-    const load = loadLocal().filter(s=>s.date===iso).reduce((a,b)=>a+(b.duration*b.rpe),0);
-    const isToday = iso === toISODate(new Date());
-    
-    const cell = document.createElement("div"); 
-    cell.className = `calendar-cell border transition-all duration-200 ${sameMonth ? "" : "opacity-30"} ${isToday ? "ring-2 ring-blue-500 ring-opacity-50" : ""}`;
-    
-    const label = document.createElement("div"); 
-    label.className = `text-xs font-medium ${isToday ? "text-blue-600 font-bold" : "text-gray-600"}`; 
-    label.textContent = day.getDate(); 
-    cell.appendChild(label);
-    
-    if (load > 0) {
-      const loadEl = document.createElement("div"); 
-      loadEl.className = "calendar-load"; 
-      const alpha = Math.min(load/600, .8); 
-      loadEl.style.background = `linear-gradient(135deg, rgba(59,130,246,${alpha}) 0%, rgba(37,99,235,${alpha}) 100%)`; 
-      cell.appendChild(loadEl);
-      
-      const val = document.createElement("div"); 
-      val.className = "absolute bottom-1 right-2 text-xs font-bold text-blue-700"; 
-      val.textContent = fmt(load); 
-      cell.appendChild(val);
-      
-      // Adicionar tooltip
-      cell.title = `${day.toLocaleDateString('pt-BR')}: ${fmt(load)} sRPE`;
-    }
-    
-    grid.appendChild(cell);
-  }
-}
-
-function toCSV(arr){ const header = ["date","name","duration","rpe"]; const rows = arr.map(s=>[s.date, s.name||"", s.duration||"", s.rpe||""]); return [header.join(","), ...rows.map(r=>r.join(","))].join("\n"); }
-function fromCSV(text){
-  const lines = text.trim().split(/\r?\n/); const head = lines.shift().split(",");
-  const idx = { date: head.indexOf("date"), name: head.indexOf("name"), duration: head.indexOf("duration"), rpe: head.indexOf("rpe") };
-  const out = []; lines.forEach(line => { const cols = line.split(","); const item = { id: crypto.randomUUID(), date: cols[idx.date]||"", name: cols[idx.name]||"", duration: Number(cols[idx.duration]||0), rpe: Number(cols[idx.rpe]||0) }; if(item.date) out.push(item); });
-  return out;
-}
-
-function boot(){
-  const sessions = loadLocal();
-  const todayISO = toISODate(new Date());
-  document.getElementById("dateInput").value = todayISO;
-  document.getElementById("toInput").value = todayISO;
-  document.getElementById("fromInput").value = toISODate(addDays(new Date(), -35));
-  renderEntriesTable(sessions);
-  renderKPIsAndChart(sessions, document.getElementById("fromInput").value, document.getElementById("toInput").value);
-  renderCalendar(sessions);
-}
-
-// Função para notificar outras abas sobre mudanças nos dados
-function notifyOtherTabs(dataChanged = true) {
-  try {
-    // Usar BroadcastChannel API para comunicação entre abas
-    if (typeof BroadcastChannel !== 'undefined') {
-      const channel = new BroadcastChannel('acwr-data-updates');
-      channel.postMessage({
-        type: 'data-updated',
-        timestamp: Date.now(),
-        dataChanged: dataChanged
-      });
-    }
-    
-    // Fallback para localStorage event
-    if (dataChanged) {
-      localStorage.setItem('acwr-last-update', Date.now().toString());
-      // Disparar evento customizado
-      window.dispatchEvent(new CustomEvent('acwr-data-updated', {
-        detail: { timestamp: Date.now() }
-      }));
-    }
-  } catch (error) {
-    console.log('Erro ao notificar outras abas:', error);
-  }
-}
-
-// Função para sincronizar dados com o dashboard
-function syncWithDashboard() {
-  try {
-    const sessions = loadLocal();
-    
-    // Salvar no localStorage com timestamp
-    localStorage.setItem('sessions', JSON.stringify(sessions));
-    localStorage.setItem('acwr-dashboard-sync', Date.now().toString());
-    
-    // Notificar outras abas
-    notifyOtherTabs(true);
-    
-    showNotification('Dados sincronizados com o dashboard! 🔗', 'success');
-  } catch (error) {
-    showNotification('Erro ao sincronizar com dashboard: ' + error.message, 'error');
-  }
-}
-
-// Listener para mudanças em outras abas
-function setupCrossTabListener() {
-  try {
-    // BroadcastChannel API
-    if (typeof BroadcastChannel !== 'undefined') {
-      const channel = new BroadcastChannel('acwr-data-updates');
-      channel.onmessage = (event) => {
-        if (event.data.type === 'data-updated') {
-          console.log('Dados atualizados em outra aba:', event.data);
-          // Atualizar interface se necessário
-          boot();
-        }
-      };
-    }
-    
-    // localStorage event listener
-    window.addEventListener('storage', (event) => {
-      if (event.key === 'acwr-last-update') {
-        console.log('Dados atualizados em outra aba via localStorage');
-        boot();
-      }
-    });
-    
-    // Custom event listener
-    window.addEventListener('acwr-data-updated', (event) => {
-      console.log('Dados atualizados via custom event:', event.detail);
-      boot();
-    });
-    
-  } catch (error) {
-    console.log('Erro ao configurar listener entre abas:', error);
-  }
-}
-
- document.addEventListener("DOMContentLoaded", () => {
-   // Aguardar Firebase carregar completamente
-   setTimeout(() => {
-     // Auto-connect com Firebase (híbrido)
-     if (typeof FIREBASE_CONFIG !== 'undefined' && typeof firebase !== 'undefined') {
-       connectFirebase();
-     } else {
-       console.warn("Configuração do Firebase não encontrada ou Firebase não carregado.");
-       document.getElementById("cloudStatus").textContent = "Configuração necessária";
-       document.getElementById("cloudStatus").className = "small px-3 py-1 bg-red-100 text-red-800 rounded-full";
-     }
-   }, 1000); // Aguardar 1 segundo para Firebase carregar
-   
-   // Verificar resultado do redirecionamento do Google
-   if (fb.auth) {
-     fb.auth.getRedirectResult().then((result) => {
-       if (result.user) {
-         console.log("Login redirect bem-sucedido:", result.user.email);
-         showNotification(`Bem-vindo, ${result.user.email || result.user.displayName}!`, "success");
-       }
-     }).catch((error) => {
-       if (error.code !== 'auth/no-redirect-result') {
-         console.error("Erro no redirecionamento:", error);
-         showNotification("Erro no login: " + error.message, "error");
-       }
-     });
-   }
-  // Configurar listener entre abas
-  setupCrossTabListener();
-  
-  document.getElementById("googleBtn").addEventListener("click", googleSignIn);
-  document.getElementById("signOutBtn").addEventListener("click", signOut);
-  document.getElementById("emailSignIn").addEventListener("click", () => emailSignIn(document.getElementById("emailInput").value, document.getElementById("passInput").value));
-  document.getElementById("emailSignUp").addEventListener("click", () => emailSignUp(document.getElementById("emailInput").value, document.getElementById("passInput").value));
-  document.getElementById("emailReset").addEventListener("click", () => emailReset(document.getElementById("emailInput").value));
-
-  document.querySelectorAll(".chip[data-rpe]").forEach(el => el.addEventListener("click", ()=>{ document.getElementById("rpeInput").value = el.getAttribute("data-rpe"); }));
-
-  document.getElementById("addBtn").addEventListener("click", async () => {
-    const addBtn = document.getElementById("addBtn");
-    const date = document.getElementById("dateInput").value;
-    const name = document.getElementById("nameInput").value;
-    const duration = Number(document.getElementById("durInput").value);
-    const rpe = Number(document.getElementById("rpeInput").value);
-    
-    if(!date || !isFinite(duration) || !isFinite(rpe)) { 
-      showNotification("Preencha data, duração e RPE.", "error");
-      return; 
-    }
-    
-    addLoadingState(addBtn);
-    
-    try {
-      const sessions = loadLocal(); 
-      sessions.push({ id: crypto.randomUUID(), date, name, duration, rpe }); 
-      saveLocal(sessions);
-      
-      if(document.getElementById("autoSync").checked && fb.uid) { 
-        try { 
-          await pushToCloud(); 
-          showNotification("Sessão adicionada e sincronizada!", "success");
-        } catch(e){
-          showNotification("Sessão adicionada localmente. Erro na sincronização.", "error");
-        }
-      } else {
-        showNotification("Sessão adicionada com sucesso!", "success");
-      }
-      
-      // Notificar outras abas sobre a mudança
-      notifyOtherTabs(true);
-      
-      document.getElementById("nameInput").value=""; 
-      document.getElementById("durInput").value=""; 
-      document.getElementById("rpeInput").value="";
-      
-      // Notificar outras abas sobre a mudança
-      notifyOtherTabs(true);
-      
-      boot();
-    } catch (error) {
-      showNotification("Erro ao adicionar sessão.", "error");
-    } finally {
-      removeLoadingState(addBtn);
-    }
-  });
-
-  document.getElementById("applyRangeBtn").addEventListener("click", () => { renderKPIsAndChart(loadLocal(), document.getElementById("fromInput").value, document.getElementById("toInput").value); });
-
-  document.getElementById("seedBtn").addEventListener("click", () => {
-    const seedBtn = document.getElementById("seedBtn");
-    addLoadingState(seedBtn);
-    
-    try {
-      const today = new Date(); 
-      const start = new Date(today.getFullYear(), today.getMonth(), today.getDate()-41);
-      const sess = []; 
-      const names=["Run Intervals","Strength Lower","Bike Z2","Mobility","Small-sided","Tempo Run"];
-      
-      for(let i=0;i<42;i++){ 
-        const d = new Date(start.getFullYear(), start.getMonth(), start.getDate()+i);
-      if(d.getDay()===0) continue;
-      const dur = [30,40,45,50,60,75][Math.floor(Math.random()*6)];
-      const rpe = [3,4,5,6,7][Math.floor(Math.random()*5)];
-        sess.push({ 
-          id: crypto.randomUUID(), 
-          date: toISODate(d), 
-          name: names[Math.floor(Math.random()*names.length)], 
-          duration: dur, 
-          rpe 
-        });
-      }
-      
-      saveLocal(sess); 
-      
-      // Notificar outras abas sobre a mudança
-      notifyOtherTabs(true);
-      
-      boot();
-      showNotification("Dados de demonstração carregados!", "success");
-    } catch (error) {
-      showNotification("Erro ao carregar dados de demonstração.", "error");
-    } finally {
-      removeLoadingState(seedBtn);
-    }
-  });
-  document.getElementById("exportBtn").addEventListener("click", () => {
-    try {
-    const blob = new Blob([toCSV(loadLocal())], {type:"text/csv"});
-      const a = document.createElement("a"); 
-      a.href = URL.createObjectURL(blob); 
-      a.download = `sessions_acwr_${new Date().toISOString().slice(0,10)}.csv`; 
-      a.click();
-      showNotification("Dados exportados com sucesso!", "success");
-    } catch (error) {
-      showNotification("Erro ao exportar dados.", "error");
-    }
-  });
-  document.getElementById("importInput").addEventListener("change", (e) => {
-    const file = e.target.files[0]; 
-    if(!file) return;
-    
-    const reader = new FileReader(); 
-    reader.onload = (ev) => { 
-      try {
-        const arr = fromCSV(ev.target.result); 
-        const curr = loadLocal(); 
-        saveLocal(curr.concat(arr)); 
-        
-        // Notificar outras abas sobre a mudança
-        notifyOtherTabs(true);
-        
-        boot();
-        showNotification(`${arr.length} sessões importadas com sucesso!`, "success");
-      } catch (error) {
-        showNotification("Erro ao importar arquivo CSV.", "error");
-      }
-    };
-    reader.readAsText(file);
-  });
-  document.getElementById("clearBtn").addEventListener("click", () => { 
-    if(confirm("⚠️ Tem certeza que deseja apagar todas as sessões do armazenamento local? Esta ação não pode ser desfeita.")) { 
-      localStorage.removeItem(KEY); 
-      
-      // Notificar outras abas sobre a mudança
-      notifyOtherTabs(true);
-      
-      boot();
-      showNotification("Todos os dados foram removidos.", "info");
-    } 
-  });
-
-  document.getElementById("prevMonth").addEventListener("click", ()=>{ calRef = new Date(calRef.getFullYear(), calRef.getMonth()-1, 1); renderCalendar(loadLocal()); });
-  document.getElementById("nextMonth").addEventListener("click", ()=>{ calRef = new Date(calRef.getFullYear(), calRef.getMonth()+1, 1); renderCalendar(loadLocal()); });
-
-  boot();
-  
-  // Atalhos de teclado
-  document.addEventListener('keydown', (e) => {
-    // Ctrl/Cmd + Enter para adicionar sessão
-    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-      e.preventDefault();
-      document.getElementById('addBtn').click();
-    }
-    
-    // Ctrl/Cmd + S para salvar no cloud
-    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-      e.preventDefault();
-      if (fb.uid) {
-        document.getElementById('cloudPush').click();
-      }
-    }
-    
-    // Ctrl/Cmd + L para carregar do cloud
-    if ((e.ctrlKey || e.metaKey) && e.key === 'l') {
-      e.preventDefault();
-      if (fb.uid) {
-        document.getElementById('cloudPull').click();
-      }
-    }
-    
-    // Escape para limpar formulário
-    if (e.key === 'Escape') {
-      document.getElementById('nameInput').value = '';
-      document.getElementById('durInput').value = '';
-      document.getElementById('rpeInput').value = '';
-      document.getElementById('nameInput').focus();
-    }
-  });
-  
-  // Foco automático no nome da sessão
-  document.getElementById('nameInput').focus();
-  
-  // Auto-complete para data (hoje)
-  if (!document.getElementById('dateInput').value) {
-    document.getElementById('dateInput').value = toISODate(new Date());
-  }
-});
-</script>
+    <script src="app.js"></script>
 </body>
 </html>
